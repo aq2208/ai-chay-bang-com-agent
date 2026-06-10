@@ -1,2 +1,2 @@
-# clawathon-aicbc-agent
-clawathon-aicbc-agent
+# ai-chay-bang-com-agent
+ai-chay-bang-com-agent
