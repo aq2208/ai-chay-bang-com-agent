@@ -1,6 +1,6 @@
 # ── LLM providers (install whichever you use) ────────────────────────────
 anthropic          # LLM_PROVIDER=anthropic
-google-generativeai  # LLM_PROVIDER=google
+google-genai       # LLM_PROVIDER=google  (new SDK — NOT google-generativeai)
 openai             # LLM_PROVIDER=openai
 
 # ── Core infrastructure ───────────────────────────────────────────────────
@@ -11,6 +11,7 @@ apscheduler
 streamlit
 chromadb
 pydantic
+httpx              # used by llm_client vision() to download image URLs for Gemini
 
 # ── ML / NLP ──────────────────────────────────────────────────────────────
 sentence-transformers
