@@ -1,0 +1,22 @@
+# ── LLM providers (install whichever you use) ────────────────────────────
+anthropic          # LLM_PROVIDER=anthropic
+google-generativeai  # LLM_PROVIDER=google
+openai             # LLM_PROVIDER=openai
+
+# ── Core infrastructure ───────────────────────────────────────────────────
+python-dotenv
+fastapi
+uvicorn[standard]
+apscheduler
+streamlit
+chromadb
+pydantic
+
+# ── ML / NLP ──────────────────────────────────────────────────────────────
+sentence-transformers
+transformers
+torch
+
+# ── Data connectors ───────────────────────────────────────────────────────
+jira
+requests
