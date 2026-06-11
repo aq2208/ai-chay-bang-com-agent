@@ -1,0 +1,11 @@
+# Crawler-only dependencies — for running the OFFLINE Playwright crawlers
+# (crawlers/threads_crawler.py). NOT installed in the AgentBase agent image.
+#
+# Install + browser:
+#   pip install -r requirements-crawler.txt
+#   python -m playwright install chromium
+playwright
+aiohttp
+python-dateutil
+nest-asyncio        # only needed when running inside a notebook (Colab)
+pydantic            # SocialPost schema (also a core dep)

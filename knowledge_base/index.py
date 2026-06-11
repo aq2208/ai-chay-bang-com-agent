@@ -1,8 +1,13 @@
 """
-Build the ChromaDB knowledge base index from knowledge_base/docs/.
+Build the ChromaDB indexes from knowledge_base/docs/.
 
-Each .md file is split by '---' separators into individual issue chunks.
-This gives more accurate search — each chunk covers exactly one issue type.
+Two collections are produced:
+  • "knowledge_base" — solution docs. Each .md is split by '---' into issue chunks;
+    only chunks with a "## Suggested Approach" are indexed (used for RAG solution lookup).
+    Each chunk carries its file-level **Domain:** in metadata.
+  • "taxonomy"       — built from docs/taxonomy.md. One chunk per domain/segment with a
+    definition + example phrasings, each tagged with domain + segment metadata. Used by the
+    classifier to ground domain/segment decisions in real examples.
 
 Run once (or re-run whenever docs change):
     .venv/bin/python knowledge_base/index.py
@@ -17,25 +22,32 @@ from pathlib import Path
 import chromadb
 from sentence_transformers import SentenceTransformer
 
-DOCS_DIR    = Path(__file__).parent / "docs"
-DB_PATH     = Path(__file__).parent.parent / "chroma_db"
-COLLECTION  = "knowledge_base"
-EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
+DOCS_DIR            = Path(__file__).parent / "docs"
+TAXONOMY_FILE       = DOCS_DIR / "taxonomy.md"
+DB_PATH             = Path(__file__).parent.parent / "chroma_db"
+COLLECTION          = "knowledge_base"
+TAXONOMY_COLLECTION = "taxonomy"
+EMBED_MODEL         = "paraphrase-multilingual-MiniLM-L12-v2"
 
 
-def _split_into_chunks(text: str, stem: str) -> list[tuple[str, str, dict]]:
+def _parse_field(text: str, field: str) -> str:
+    """Extract a `**Field:** value` line value from a markdown block (empty if absent)."""
+    m = re.search(rf"^\*\*{re.escape(field)}:\*\*\s*(.+)$", text, re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
+def _split_solution_chunks(text: str, stem: str) -> list[tuple[str, str, dict]]:
     """
-    Split a doc by '---' separators into chunks.
-    Each chunk becomes one searchable entry in ChromaDB.
+    Split a solution doc by '---' into chunks. Only index chunks that contain an actual
+    solution ('## Suggested Approach'). Each chunk inherits the file-level Domain.
 
     Returns list of (chunk_id, chunk_text, metadata).
     """
-    # Split on lines containing only dashes (markdown horizontal rule)
+    domain = _parse_field(text, "Domain")  # from the file header block
     sections = re.split(r"\n\s*---+\s*\n", text)
     chunks = []
     for i, section in enumerate(sections):
         section = section.strip()
-        # Only index sections that contain actual solutions (not header/metadata blocks)
         if "## Suggested Approach" not in section:
             continue
         if len(section.split()) < 10:
@@ -43,58 +55,96 @@ def _split_into_chunks(text: str, stem: str) -> list[tuple[str, str, dict]]:
         chunk_id = f"{stem}_{i}"
         heading_match = re.search(r"^#{1,3} (.+)$", section, re.MULTILINE)
         title = heading_match.group(1).strip() if heading_match else stem
-        chunks.append((chunk_id, section, {"filename": f"{stem}.md", "stem": stem, "title": title}))
+        chunks.append((
+            chunk_id,
+            section,
+            {"filename": f"{stem}.md", "stem": stem, "title": title, "domain": domain},
+        ))
     return chunks
+
+
+def _split_taxonomy_chunks(text: str) -> list[tuple[str, str, dict]]:
+    """
+    Split taxonomy.md by '---'. Index every section that declares a **Domain:** and
+    **Segment:**, tagging it with those values.
+
+    Returns list of (chunk_id, chunk_text, metadata).
+    """
+    sections = re.split(r"\n\s*---+\s*\n", text)
+    chunks = []
+    for i, section in enumerate(sections):
+        section = section.strip()
+        domain  = _parse_field(section, "Domain")
+        segment = _parse_field(section, "Segment")
+        if not domain or not segment:
+            continue
+        chunks.append((
+            f"tax_{i}",
+            section,
+            {"domain": domain, "segment": segment},
+        ))
+    return chunks
+
+
+def _rebuild_collection(client, model, name: str, ids, texts, metadatas) -> int:
+    try:
+        client.delete_collection(name)
+    except Exception:
+        pass
+    if not texts:
+        return 0
+    collection = client.create_collection(name, metadata={"hnsw:space": "cosine"})
+    embeddings = model.encode(texts, show_progress_bar=False).tolist()
+    collection.add(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
+    return len(texts)
 
 
 def build_index() -> int:
     """
-    Read all .md / .txt files from docs/, split into chunks, embed, store in ChromaDB.
-    Drops the existing collection first so re-runs are always a clean rebuild.
-
-    Returns:
-        Number of chunks indexed (0 if docs/ is empty).
+    Build the solution ('knowledge_base') and 'taxonomy' collections in ChromaDB.
+    Both are clean rebuilds. Returns the number of solution chunks indexed.
     """
     model  = SentenceTransformer(EMBED_MODEL)
     client = chromadb.PersistentClient(path=str(DB_PATH))
 
-    # Clean rebuild — drop old collection if it exists
-    try:
-        client.delete_collection(COLLECTION)
-    except Exception:
-        pass
-
-    collection = client.create_collection(
-        COLLECTION,
-        metadata={"hnsw:space": "cosine"},  # distances in [0,1]: 0=identical
-    )
-
-    doc_paths = sorted(DOCS_DIR.glob("*.md")) + sorted(DOCS_DIR.glob("*.txt"))
-    if not doc_paths:
-        print(f"No docs found in {DOCS_DIR}. Add .md files and re-run.")
-        return 0
-
+    # ── Solution collection (exclude taxonomy.md) ──────────────────────────
+    doc_paths = [
+        p for p in sorted(DOCS_DIR.glob("*.md")) + sorted(DOCS_DIR.glob("*.txt"))
+        if p.name != TAXONOMY_FILE.name
+    ]
     ids, texts, metadatas = [], [], []
     for path in doc_paths:
         raw = path.read_text(encoding="utf-8").strip()
         if not raw:
             continue
-        for chunk_id, chunk_text, meta in _split_into_chunks(raw, path.stem):
+        for chunk_id, chunk_text, meta in _split_solution_chunks(raw, path.stem):
             ids.append(chunk_id)
             texts.append(chunk_text)
             metadatas.append(meta)
+    n_solution = _rebuild_collection(client, model, COLLECTION, ids, texts, metadatas)
 
-    if not texts:
-        return 0
+    # ── Taxonomy collection ────────────────────────────────────────────────
+    n_tax = 0
+    if TAXONOMY_FILE.exists():
+        tax_raw = TAXONOMY_FILE.read_text(encoding="utf-8").strip()
+        t_ids, t_texts, t_meta = [], [], []
+        for cid, ctext, meta in _split_taxonomy_chunks(tax_raw):
+            t_ids.append(cid)
+            t_texts.append(ctext)
+            t_meta.append(meta)
+        n_tax = _rebuild_collection(client, model, TAXONOMY_COLLECTION, t_ids, t_texts, t_meta)
 
-    embeddings = model.encode(texts, show_progress_bar=False).tolist()
-    collection.add(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
+    if n_solution == 0:
+        print(f"No solution chunks found in {DOCS_DIR}. Add .md files and re-run.")
+    else:
+        print(f"Indexed {n_solution} solution chunks from {len(doc_paths)} docs → {DB_PATH}")
+        for stem in sorted({m["stem"] for m in metadatas}):
+            count = sum(1 for m in metadatas if m["stem"] == stem)
+            domain = next((m["domain"] for m in metadatas if m["stem"] == stem), "")
+            print(f"  • {stem}.md  ({count} chunks, domain={domain or '?'})")
+    print(f"Indexed {n_tax} taxonomy chunks → '{TAXONOMY_COLLECTION}' collection")
 
-    print(f"Indexed {len(texts)} chunks from {len(doc_paths)} docs → ChromaDB at {DB_PATH}")
-    for stem in sorted({m["stem"] for m in metadatas}):
-        count = sum(1 for m in metadatas if m["stem"] == stem)
-        print(f"  • {stem}.md  ({count} chunks)")
-    return len(texts)
+    return n_solution
 
 
 if __name__ == "__main__":

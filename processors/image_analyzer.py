@@ -22,6 +22,19 @@ from llm_client import llm
 
 SAMPLE_DIR = Path(__file__).parent.parent / "sample_images"
 
+
+def _to_image_input(image: str) -> dict:
+    """
+    Build an llm.vision image entry from either an http(s) URL or a base64 data URI.
+    Bronze crawlers (e.g. Threads) store images as 'data:<mime>;base64,<data>' — pass those as
+    base64 so both the OpenAI/MaaS and Google vision paths work (a data: URI can't be downloaded).
+    """
+    if image.startswith("data:") and ";base64," in image:
+        header, data = image.split(";base64,", 1)
+        media_type = header[len("data:"):] or "image/jpeg"
+        return {"type": "base64", "data": data, "media_type": media_type}
+    return {"type": "url", "url": image}
+
 _SYSTEM = (
     "You are a mobile app technical analyst. "
     "Analyze screenshots to identify UI errors, error messages, and failure states. "
@@ -70,7 +83,7 @@ def analyze_image(image_url: str, samples: list[dict] | None = None) -> dict:
             "confidence":     "high | medium | low",
         }
     """
-    images: list[dict] = [{"type": "url", "url": image_url}]
+    images: list[dict] = [_to_image_input(image_url)]
 
     if samples:
         for s in samples:

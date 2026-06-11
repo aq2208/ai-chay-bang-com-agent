@@ -1,6 +1,12 @@
 # ZaloPay Issue Analytics Agent
 
-An AI pipeline that fetches complaints from Jira and social media (Facebook, Threads), filters and classifies them, then generates structured issue reports for Product Owners.
+An AI pipeline that fetches complaints from Jira and social media (Facebook, Threads), filters and classifies them, then generates structured issue reports for Product Owners — plus an agentic Q&A endpoint.
+
+> **Deployed as a VNG AgentBase Custom Agent.** The LLM is `google/gemma-4-31b-it` via the OpenAI-compatible
+> MaaS endpoint. `main.py` is the AgentBase entrypoint (`/invocations`); `local_api.py` is the local FastAPI
+> dev harness. For local/Colab development you can also point `llm_client` at Google Gemini (free tier).
+> Full design & status: `vault/Projects/00 - Project Home.md`.
+> **Step-by-step real-data testing:** see [`HOW_TO_TEST.md`](HOW_TO_TEST.md).
 
 ---
 
@@ -78,10 +84,11 @@ DATA SOURCES
                     │  output/ report │
                     └─────────────────┘
 
-TRIGGER LAYER (not yet built)
-  FastAPI  → POST /run/jira    → run Jira job now
-           → POST /run/social  → run Social job now
-  APScheduler → runs both jobs at 6:00 AM daily
+TRIGGER LAYER
+  AgentBase entrypoint (main.py) → POST /invocations
+     {"action":"run","job":"jira|social|all"}  → run a pipeline + index issues
+     {"action":"query","question":"..."}        → agentic Q&A (RAG over indexed issues)
+  Local dev: local_api.py (FastAPI + APScheduler) — not shipped
 ```
 
 ---
@@ -91,32 +98,36 @@ TRIGGER LAYER (not yet built)
 ```
 clawathon-aicbc-agent/
 │
-├── config.py              ← all settings: provider, models, domains, thresholds
-├── llm_client.py          ← pluggable LLM wrapper (Anthropic / Google / OpenAI)
+├── main.py                ← AgentBase entrypoint (/invocations: run | query)
+├── local_api.py           ← local FastAPI + APScheduler dev harness (not shipped)
+├── config.py              ← all settings: provider, models (LLM_BASE_URL), domains, thresholds
+├── llm_client.py          ← pluggable LLM wrapper (MaaS/OpenAI · Google · Anthropic)
 ├── mock_data.py           ← fake Jira tickets + social posts for development
-├── test_phase2.py         ← test runner for Phase 2 processors
 │
 ├── processors/            ← one file per pipeline stage
 │   ├── preprocessor.py    ← Stage 1: clean, filter, deduplicate (no API)
 │   ├── sentiment.py       ← Stage 2: PhoBERT + LLM tiebreaker
 │   ├── issue_extractor.py ← Stage 4: LLM → clean English issue sentence
-│   └── classifier.py      ← Stages 5+6: LLM → domain → segment
+│   ├── classifier.py      ← Stages 5+6: RAG-grounded domain → segment
+│   ├── grouper.py         ← Stage 7: embeddings → merge near-duplicates
+│   └── image_analyzer.py  ← Stage 3: Gemma vision on screenshots
 │
-├── connectors/            ← data fetchers (Phase 8 — not yet built)
+├── connectors/            ← data fetchers: Jira, Facebook, Threads (built)
 │   ├── jira.py            ← Jira REST API client
 │   ├── facebook.py        ← Facebook Graph API keyword search
 │   └── threads.py         ← Threads API keyword search
 │
-├── knowledge_base/        ← RAG system (Phase 3 — not yet built)
-│   ├── index.py           ← build ChromaDB index from docs/
-│   ├── search.py          ← embed query → find top-k matches
-│   └── docs/              ← team writes solution docs here (.md or .txt)
+├── knowledge_base/        ← RAG (built): solution docs + taxonomy + issues store
+│   ├── index.py           ← build ChromaDB indexes (knowledge_base + taxonomy)
+│   ├── search.py          ← solution search() + search_taxonomy()
+│   ├── issues_store.py    ← index_issues() + answer_question() for agentic Q&A
+│   └── docs/              ← solution docs + taxonomy.md (domain/segment grounding)
 │
-├── report/                ← report generation (Phase 5 — not yet built)
+├── report/                ← report generation (built)
 │   ├── generator.py       ← LLM → markdown table from grouped issues
 │   └── guardrails.py      ← validate report format and completeness
 │
-├── jobs/                  ← full pipeline runners (Phase 6 — not yet built)
+├── jobs/                  ← full pipeline runners (built)
 │   ├── jira_job.py        ← runs stages 1,4,5,6,7,8,9,10 on Jira data
 │   └── social_job.py      ← runs stages 1,2,3,4,5,6,7,8,9,10 on social data
 │
@@ -385,33 +396,73 @@ OUTPUT ROW:
 
 ## LLM Provider Reference
 
-| Provider | Key format | Free tier | Speed | Best for |
-|----------|-----------|-----------|-------|----------|
-| `google` | `AIzaSy...` | 10–20 req/day | Fast | Testing (free) |
-| `anthropic` | `sk-ant-api03-...` | $5 credit on signup | Medium | Production |
-| `openai` | `sk-proj-...` | $5 credit on signup | Medium | Production |
+The `llm_client` is pluggable. **Production = AgentBase MaaS** (OpenAI-compatible, single Gemma model).
+**Local/Colab dev = Google Gemini** (free tier) so you can test stage-by-stage without MaaS access.
 
-To switch providers, change two lines in `.env` — no code changes needed:
+| Provider | Config | Used for |
+|----------|--------|----------|
+| `openai` + `LLM_BASE_URL` | `LLM_PROVIDER=openai`, `LLM_BASE_URL=https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1`, `MODEL_*=google/gemma-4-31b-it` | **AgentBase deployment (MaaS)** |
+| `google` | `LLM_PROVIDER=google`, `LLM_API_KEY=AIzaSy...` | Local/Colab dev (free; `gemini-2.5-flash` for SMART — `pro` is blocked on free tier) |
+| `anthropic` / `openai` (real) | standard keys | optional alternates |
 
-```env
-LLM_PROVIDER=anthropic
-LLM_API_KEY=sk-ant-api03-...
+Switching is two `.env` lines — no code changes. See `.env.example` (dev) and `.env.agentbase.example` (deploy).
+
+## Deploy to AgentBase
+
+1. **Credentials:** copy `.greennode.json.example` → `.greennode.json` and fill `client_id`/`client_secret`
+   (from `iam.console.vngcloud.vn/service-accounts`). Create a MaaS LLM key via `/agentbase-llm`.
+2. **Env:** copy `.env.agentbase.example` → an env file; set `LLM_API_KEY` (MaaS) + connector creds.
+   Do **not** set `GREENNODE_*` (auto-injected at runtime).
+3. **Deploy:** `/agentbase-deploy` (or build `--platform linux/amd64`, push to CR, create a
+   `runtime-s2-general-4x8` runtime `--from-cr --env-file <env>`). The image bakes PhoBERT + MiniLM + the
+   ChromaDB index, so there's no first-request model download.
+4. **Invoke** (`POST <endpoint>/invocations`):
+   ```jsonc
+   {"action": "run", "job": "all", "dry_run": false}              // run pipelines + index issues
+   {"action": "query", "question": "summarize payment issues this week"}  // agentic Q&A
+   ```
+   Health: `GET <endpoint>/health`.
+
+## Crawling (Bronze layer)
+
+Crawling is **decoupled** from the agent and runs **offline** (Colab / a worker / locally) — headless
+Chromium is too heavy and easily blocked from datacenter IPs, and a scroll-crawl would exceed the
+invocation timeout. Crawlers write raw records to `data/raw/<source>_<ts>.jsonl`; connectors read the
+latest bronze file and normalize it.
+
+```bash
+pip install -r requirements-crawler.txt
+python -m playwright install chromium
+python crawlers/threads_crawler.py        # → data/raw/threads_<ts>.jsonl
 ```
+
+- `crawlers/threads_crawler.py` — Playwright public keyword search on `threads.net/search`; filters by
+  post age, downloads images as base64, dedups by MD5. Uses `config.KEYWORDS` / `DAYS_BACK`.
+- `crawlers/bronze.py` — shared JSONL IO (`save` / `load_latest`).
+- `connectors/threads.py` — reads the latest bronze file, maps `SocialPost` → `{id, source, text, images, timestamp}`.
+- Then run the pipeline against it: `{"action":"run","job":"social","dry_run":false}`.
 
 ---
 
 ## Build Status
 
-| Phase | What | Status |
-|-------|------|--------|
-| 1 | Project skeleton, config, mock data | ✅ Done |
-| 2 | Preprocessor, sentiment, issue extractor, classifier | ✅ Done |
-| 3 | Knowledge base — 5 docs, 17 chunks, ChromaDB search | ✅ Done |
-| 4 | Image analyzer, semantic grouper | ⬜ Next |
-| 5 | Report generator, guardrails | ⬜ Pending |
-| 6 | Job runners (jira_job.py, social_job.py) | ⬜ Pending |
-| 7 | FastAPI + APScheduler trigger layer | ⬜ Pending |
-| 8 | Real data connectors (Jira, FB, Threads APIs) | ⬜ Pending |
+| Area | Status |
+|------|--------|
+| Skeleton, config, mock data | ✅ Done |
+| Processors: preprocessor, sentiment, issue extractor, classifier | ✅ Done |
+| Knowledge base — 5 solution docs + taxonomy, ChromaDB (`knowledge_base` + `taxonomy`) | ✅ Done |
+| Image analyzer, semantic grouper | ✅ Done |
+| Report generator + guardrails | ✅ Done |
+| Job runners (`jira_job.py`, `social_job.py`) | ✅ Done |
+| **RAG-grounded classification** (taxonomy retrieval) | ✅ Done |
+| **Agentic Q&A** (`knowledge_base/issues_store.py` + `query` action) | ✅ Done |
+| Connectors: Facebook, Threads, **Jira** | ✅ Done |
+| LLM client → MaaS (`LLM_BASE_URL`, single Gemma) | ✅ Done |
+| **AgentBase entrypoint** (`main.py`) + `local_api.py` dev harness | ✅ Done |
+| Dependencies + Dockerfile (baked models/index) + AgentBase config templates | ✅ Done |
+| Local e2e on mock data (via Google) | ✅ Verified |
+| MaaS Gemma live test (text + vision) | ⛔ Needs a real MaaS key |
+| Deploy to AgentBase | ⛔ Needs MaaS key + `.greennode.json` |
 
 ---
 

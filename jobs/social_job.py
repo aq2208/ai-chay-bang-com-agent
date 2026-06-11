@@ -119,5 +119,13 @@ def run(dry_run: bool = True) -> dict:
     path = save_report(report, "Social Media")
     _log(f"Step 8/8 — report saved: {path}")
 
+    # Index issues for the agentic Q&A store (best-effort — never block report delivery).
+    try:
+        from knowledge_base.issues_store import index_issues
+        n = index_issues(items, job_name="Social Media")
+        _log(f"Indexed {n} issue(s) into the Q&A store")
+    except Exception as e:
+        _log(f"WARNING — issue indexing failed: {e}")
+
     total_mentions = sum(item.get("mentions", 1) for item in items)
     return {"report_path": str(path), "issues": len(items), "mentions": total_mentions}

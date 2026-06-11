@@ -1,23 +1,22 @@
-# ── LLM providers (install whichever you use) ────────────────────────────
-anthropic          # LLM_PROVIDER=anthropic
-google-genai       # LLM_PROVIDER=google  (new SDK — NOT google-generativeai)
-openai             # LLM_PROVIDER=openai
+# Production dependencies — what ships in the AgentBase Docker image.
+# Local/dev-only extras (FastAPI harness, Streamlit, Gemini/Claude SDKs) live in
+# requirements-dev.txt.
 
-# ── Core infrastructure ───────────────────────────────────────────────────
+# ── AgentBase runtime + LLM (MaaS is OpenAI-compatible) ─────────────────────
+greennode-agentbase
+openai
 python-dotenv
-fastapi
-uvicorn[standard]
-apscheduler
-streamlit
-chromadb
-pydantic
-httpx              # used by llm_client vision() to download image URLs for Gemini
 
-# ── ML / NLP ──────────────────────────────────────────────────────────────
+# ── ML / NLP (baked into the image at build time) ──────────────────────────
 sentence-transformers
 transformers
 torch
+chromadb
 
-# ── Data connectors ───────────────────────────────────────────────────────
+# ── Data connectors ────────────────────────────────────────────────────────
 jira
 requests
+httpx              # used by llm_client.vision() to download image URLs
+
+# ── Misc ────────────────────────────────────────────────────────────────────
+pydantic

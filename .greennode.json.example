@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to .greennode.json and fill in. Get credentials from iam.console.vngcloud.vn/service-accounts (attach AgentBaseFullAccess, vcrFullAccess, AiPlatformFullAccess). .greennode.json is gitignored. Used for LOCAL platform auth only — the runtime auto-injects GREENNODE_* in production.",
+  "client_id": "",
+  "client_secret": "",
+  "agent_identity": ""
+}

@@ -26,7 +26,15 @@ Usage:
 """
 
 from __future__ import annotations
-from config import LLM_PROVIDER, LLM_API_KEY, MODEL_FAST, MODEL_SMART
+from config import LLM_PROVIDER, LLM_API_KEY, LLM_BASE_URL, MODEL_FAST, MODEL_SMART
+
+
+def _openai_client():
+    """Build an OpenAI client, routing to LLM_BASE_URL when set (e.g. VNG MaaS)."""
+    from openai import OpenAI
+    if LLM_BASE_URL:
+        return OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+    return OpenAI(api_key=LLM_API_KEY)
 
 
 class _LLMClient:
@@ -103,8 +111,7 @@ class _LLMClient:
                     raise
 
     def _openai(self, system: str, user: str, max_tokens: int, model: str) -> str:
-        from openai import OpenAI
-        client = OpenAI(api_key=LLM_API_KEY)
+        client = _openai_client()
         resp = client.chat.completions.create(
             model=model,
             max_tokens=max_tokens,
@@ -224,8 +231,7 @@ class _LLMClient:
     def _vision_openai(
         self, system: str, prompt: str, images: list[dict], max_tokens: int, model: str
     ) -> str:
-        from openai import OpenAI
-        client = OpenAI(api_key=LLM_API_KEY)
+        client = _openai_client()
 
         img_parts: list[dict] = []
         for img in images:

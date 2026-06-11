@@ -1,4 +1,6 @@
 .env
+.greennode.json
+.agentbase-state.json
 __pycache__/
 *.pyc
 *.pyo
@@ -6,4 +8,8 @@ __pycache__/
 venv/
 chroma_db/
 output/
+data/raw/
+data/test/
+.hf_cache/
 .DS_Store
+.agentbase/

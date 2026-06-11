@@ -1,0 +1,17 @@
+# Local development extras — NOT shipped in the AgentBase image.
+# Install with: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Local FastAPI harness (local_api.py) + scheduler
+fastapi
+uvicorn[standard]
+apscheduler
+
+# Optional local demo UI (dashboard.py)
+streamlit
+
+# Alternate LLM providers for local / Colab development:
+#   google-genai → LLM_PROVIDER=google (Gemini free tier)
+#   anthropic    → LLM_PROVIDER=anthropic
+google-genai
+anthropic

@@ -1,6 +1,11 @@
 """
 Search the knowledge base for docs relevant to a given issue.
-Requires index to be built first: .venv/bin/python knowledge_base/index.py
+Requires indexes to be built first: .venv/bin/python knowledge_base/index.py
+
+Two retrievers:
+  • search()          — solution chunks ('knowledge_base' collection) for RAG solution lookup.
+  • search_taxonomy() — domain/segment taxonomy chunks ('taxonomy' collection) for grounding
+                        classification. Supports an optional domain filter.
 """
 
 from __future__ import annotations
@@ -12,12 +17,14 @@ from sentence_transformers import SentenceTransformer
 
 from config import KB_SIMILARITY_THRESHOLD
 
-DB_PATH     = Path(__file__).parent.parent / "chroma_db"
-COLLECTION  = "knowledge_base"
-EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
+DB_PATH             = Path(__file__).parent.parent / "chroma_db"
+COLLECTION          = "knowledge_base"
+TAXONOMY_COLLECTION = "taxonomy"
+EMBED_MODEL         = "paraphrase-multilingual-MiniLM-L12-v2"
 
-_model:      SentenceTransformer | None = None
-_collection = None
+_model:       SentenceTransformer | None = None
+_client = None
+_collections: dict[str, object] = {}
 
 
 def _get_model() -> SentenceTransformer:
@@ -27,30 +34,32 @@ def _get_model() -> SentenceTransformer:
     return _model
 
 
-def _get_collection():
-    global _collection
-    if _collection is None:
-        client = chromadb.PersistentClient(path=str(DB_PATH))
-        _collection = client.get_collection(COLLECTION)
-    return _collection
+def _get_collection(name: str = COLLECTION):
+    """Return a cached ChromaDB collection by name (None if it doesn't exist)."""
+    global _client
+    if name not in _collections:
+        if _client is None:
+            _client = chromadb.PersistentClient(path=str(DB_PATH))
+        try:
+            _collections[name] = _client.get_collection(name)
+        except Exception:
+            _collections[name] = None
+    return _collections[name]
 
 
 def search(issue: str, top_k: int = 2) -> list[dict]:
     """
-    Find the most relevant KB docs for an issue string.
+    Find the most relevant solution chunks for an issue string.
 
-    Args:
-        issue: extracted issue sentence (English)
-        top_k: maximum number of results to return
-
-    Returns:
-        List of matches above KB_SIMILARITY_THRESHOLD, each:
-        {"text": str, "filename": str, "similarity": float}
-        Empty list if nothing matches.
+    Returns matches above KB_SIMILARITY_THRESHOLD, each:
+        {"text": str, "filename": str, "domain": str, "similarity": float}
+    Empty list if nothing matches or the index is missing.
     """
-    col       = _get_collection()
-    embedding = _get_model().encode([issue]).tolist()
+    col = _get_collection(COLLECTION)
+    if col is None or col.count() == 0:
+        return []
 
+    embedding = _get_model().encode([issue]).tolist()
     results = col.query(
         query_embeddings=embedding,
         n_results=min(top_k, col.count()),
@@ -69,9 +78,52 @@ def search(issue: str, top_k: int = 2) -> list[dict]:
             matches.append({
                 "text":       doc,
                 "filename":   meta.get("filename", ""),
+                "domain":     meta.get("domain", ""),
                 "similarity": similarity,
             })
+    return matches
 
+
+def search_taxonomy(issue: str, top_k: int = 5, domain: str | None = None) -> list[dict]:
+    """
+    Retrieve taxonomy entries most similar to an issue, for grounding classification.
+
+    Args:
+        issue:  the extracted issue sentence
+        top_k:  max entries to return
+        domain: if given, restrict to that domain's segments (used for segment classification)
+
+    Returns:
+        List of {"text", "domain", "segment", "similarity"} sorted by similarity desc.
+        Empty list if the taxonomy collection is missing. No similarity floor — these are
+        few-shot grounding hints, not authoritative matches.
+    """
+    col = _get_collection(TAXONOMY_COLLECTION)
+    if col is None or col.count() == 0:
+        return []
+
+    embedding = _get_model().encode([issue]).tolist()
+    kwargs = {
+        "query_embeddings": embedding,
+        "n_results": min(top_k, col.count()),
+        "include": ["documents", "metadatas", "distances"],
+    }
+    if domain:
+        kwargs["where"] = {"domain": domain}
+
+    results = col.query(**kwargs)
+    matches = []
+    for doc, meta, dist in zip(
+        results["documents"][0],
+        results["metadatas"][0],
+        results["distances"][0],
+    ):
+        matches.append({
+            "text":       doc,
+            "domain":     meta.get("domain", ""),
+            "segment":    meta.get("segment", ""),
+            "similarity": round(1.0 - dist, 4),
+        })
     return matches
 
 

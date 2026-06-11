@@ -1,23 +1,48 @@
 """
-Phase 8 — Threads connector (stub).
-Fill in the implementation when Threads API credentials are available.
+Threads connector — reads the latest bronze JSONL produced by the offline Playwright crawler
+(crawlers/threads_crawler.py) and normalizes it into pipeline items.
+
+Crawling itself does NOT run here (or in the AgentBase runtime) — it's a separate offline step.
+See crawlers/threads_crawler.py and crawlers/bronze.py.
+
+Bronze record (SocialPost) → normalized item:
+    post_hash_id → id, platform → source, content → text, images_base64 → images,
+    posted_at → timestamp  (+ author, matched_keyword kept as extras)
 """
 
 from __future__ import annotations
 
-from config import THREADS_TOKEN, KEYWORDS, DAYS_BACK
+from crawlers import bronze
+
+SOURCE = "threads"
+
+
+def _to_item(rec: dict) -> dict:
+    posted = rec.get("posted_at") or ""
+    if not posted or posted == "Unknown":
+        posted = rec.get("crawled_at", "")
+    return {
+        "id":              rec.get("post_hash_id", ""),
+        "source":          SOURCE,
+        "text":            rec.get("content", ""),
+        "images":          rec.get("images_base64", []),  # base64 data URIs
+        "timestamp":       posted,
+        "author":          rec.get("author", ""),
+        "matched_keyword": rec.get("matched_keyword", ""),
+    }
 
 
 def fetch() -> list[dict]:
     """
-    Search Threads for posts mentioning ZaloPay keywords.
+    Load the most recent bronze Threads crawl and normalize it.
 
-    Returns:
-        List of items with keys: id, source, text, images, timestamp
+    Raises if no bronze file exists yet — run the crawler first
+    (`python crawlers/threads_crawler.py`) or use dry_run=True for mock data.
     """
-    if not THREADS_TOKEN:
+    records = bronze.load_latest(SOURCE)
+    if not records:
         raise RuntimeError(
-            "Threads credentials not configured. "
-            "Set THREADS_ACCESS_TOKEN in .env — or use dry_run=True."
+            "No Threads bronze data found in data/raw/. "
+            "Run the crawler first: `python crawlers/threads_crawler.py` — or use dry_run=True."
         )
-    raise NotImplementedError("Threads connector not yet implemented — coming in Phase 8.")
+    return [_to_item(r) for r in records]

@@ -1,0 +1,28 @@
+# Virtualenvs / caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# VCS / editor
+.git/
+.gitignore
+.DS_Store
+
+# Rebuilt inside the image at build time — don't ship stale/local data
+chroma_db/
+
+# Local-only / secrets (platform injects creds at runtime)
+.env
+.greennode.json
+.agentbase-state.json
+
+# Dev artifacts not needed in the runtime
+output/
+*.ipynb
+.hf_cache/
+
+# Bronze crawl data is delivered separately (not baked into the image)
+data/raw/
+.agentbase/
