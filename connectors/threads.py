@@ -29,6 +29,7 @@ def _to_item(rec: dict) -> dict:
         "timestamp":       posted,
         "author":          rec.get("author", ""),
         "matched_keyword": rec.get("matched_keyword", ""),
+        "post_url":        rec.get("post_url", ""),
     }
 
 
