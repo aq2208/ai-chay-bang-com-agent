@@ -9,6 +9,12 @@ scrolls to load comments, and writes consolidated comments to data/raw/threads_c
 Raw record schema (ThreadComment) — kept rich on purpose; the connector normalizes on read:
     comment_hash_id, parent_post_hash_id, parent_post_url, author, content, posted_at, crawled_at, images_base64
 
+Input:
+    Latest (or specified) bronze threads JSONL file: [data/raw/](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/data/raw/)`threads_<YYYYMMDD_HHMM>.jsonl`.
+
+Output:
+    Consolidated raw comment records saved to [data/raw/](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/data/raw/) as `threads_comments_<YYYYMMDD_HHMM>.jsonl` matching the parent run timestamp.
+
 Configs read from [config.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/config.py):
     - SCROLL_TIMES: Number of times to scroll down to load search results.
 

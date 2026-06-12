@@ -8,6 +8,12 @@ data/raw/threads_<ts>.jsonl; the agent's connectors/threads.py reads that bronze
 Raw record schema (SocialPost) — kept rich on purpose; the connector normalizes on read:
     post_hash_id, platform, matched_keyword, author, content, posted_at, crawled_at, post_url, images_base64
 
+Input:
+    None (reads crawler parameters dynamically from configuration).
+
+Output:
+    Consolidated raw post records saved to [data/raw/](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/data/raw/) as `threads_<YYYYMMDD_HHMM>.jsonl`.
+
 Configs read from [config.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/config.py):
     - KEYWORDS: List of keywords/search queries to crawl on Threads.
     - DAYS_BACK: Time window in days to fetch posts (used to calculate max age filter).
