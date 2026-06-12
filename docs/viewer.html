@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZaloPay Issue Analytics Agent - Docs Viewer</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- Markdown Parser and Mermaid CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+
+  <!-- Compiled Docs Data -->
+  <script src="docs_data.js"></script>
+
+  <style>
+    /* Design Tokens & Theme (Harmonious Dark Theme) */
+    :root {
+      --bg-main: #0c0e14;
+      --bg-sidebar: rgba(20, 24, 33, 0.75);
+      --bg-card: rgba(25, 31, 44, 0.45);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glowing: rgba(139, 92, 246, 0.3);
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #8b5cf6;
+      --accent-hover: #a78bfa;
+      --accent-glowing: rgba(139, 92, 246, 0.5);
+      --font-sans: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      
+      --color-concept: #a78bfa;
+      --color-framework: #38bdf8;
+      --color-project: #34d399;
+      --color-tool: #fb7185;
+      --color-other: #facc15;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    /* Sidebar Layout (Glassmorphic) */
+    #sidebar {
+      width: 320px;
+      background: var(--bg-sidebar);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      height: 100%;
+      z-index: 10;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 30%, var(--accent-hover) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Search Input */
+    .search-box {
+      position: relative;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 8px var(--border-glowing);
+    }
+
+    /* Mode Toggles */
+    .view-toggles {
+      display: flex;
+      gap: 8px;
+    }
+
+    .toggle-btn {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+    }
+
+    .toggle-btn.active {
+      background: rgba(139, 92, 246, 0.15);
+      border-color: var(--accent);
+      color: var(--text-main);
+      box-shadow: 0 0 6px var(--border-glowing);
+    }
+
+    /* File Tree & List */
+    .explorer {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px 10px;
+    }
+
+    .tree-folder {
+      margin-bottom: 6px;
+    }
+
+    .folder-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 6px 10px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+
+    .folder-title:hover {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-main);
+    }
+
+    .folder-content {
+      padding-left: 8px;
+      border-left: 1px solid rgba(255, 255, 255, 0.04);
+      margin-left: 12px;
+    }
+
+    .folder-content.collapsed {
+      display: none;
+    }
+
+    .tree-item {
+      display: block;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all 0.15s;
+      border-left: 2px solid transparent;
+    }
+
+    .tree-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      padding-left: 14px;
+    }
+
+    .tree-item.active {
+      background: rgba(139, 92, 246, 0.08);
+      color: #fff;
+      border-left-color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* Main Content Area */
+    #content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .top-bar {
+      height: 60px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 30px;
+      background: rgba(12, 14, 20, 0.5);
+      backdrop-filter: blur(10px);
+      z-index: 5;
+    }
+
+    .breadcrumbs {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .breadcrumb-item {
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .breadcrumb-item:hover {
+      color: var(--accent-hover);
+    }
+
+    .breadcrumbs span.separator {
+      color: rgba(255, 255, 255, 0.15);
+      user-select: none;
+    }
+
+    /* Content Views */
+    .view-panel {
+      flex: 1;
+      width: 100%;
+      height: calc(100% - 60px);
+      position: relative;
+    }
+
+    #doc-view {
+      height: 100%;
+      overflow-y: auto;
+      padding: 40px 60px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Markdown Styles */
+    .markdown-body {
+      font-size: 1rem;
+      line-height: 1.6;
+      color: var(--text-main);
+    }
+
+    .markdown-body h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+      color: #fff;
+    }
+
+    .markdown-body h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-top: 32px;
+      margin-bottom: 16px;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .markdown-body h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      color: #e2e8f0;
+    }
+
+    .markdown-body p {
+      margin-bottom: 16px;
+    }
+
+    .markdown-body a {
+      color: var(--accent-hover);
+      text-decoration: none;
+      border-bottom: 1px dotted var(--accent);
+      transition: color 0.15s;
+    }
+
+    .markdown-body a:hover {
+      color: var(--accent);
+      border-bottom-style: solid;
+    }
+
+    /* Wiki Links styling */
+    .markdown-body a.wiki-link {
+      font-weight: 500;
+      color: #c084fc;
+      border-bottom: 1px dashed #c084fc;
+      position: relative;
+    }
+    
+    .markdown-body a.wiki-link::before {
+      content: '🔗 ';
+      font-size: 0.8em;
+    }
+
+    .markdown-body a.wiki-link:hover {
+      color: #e9d5ff;
+      border-bottom-style: solid;
+    }
+    
+    .markdown-body a.wiki-link.broken-link {
+      color: #f87171 !important;
+      border-bottom-color: #f87171 !important;
+      text-decoration: line-through;
+    }
+
+    /* Tag styles (Pills like Obsidian) */
+    .markdown-body .tag {
+      display: inline-block;
+      background: rgba(139, 92, 246, 0.12);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      color: #c084fc;
+      border-radius: 20px;
+      padding: 1px 8px;
+      font-size: 0.82em;
+      font-weight: 500;
+      margin-right: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      text-decoration: none !important;
+      border-bottom: none !important;
+    }
+
+    .markdown-body .tag:hover {
+      background: rgba(139, 92, 246, 0.3);
+      border-color: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 8px rgba(139, 92, 246, 0.35);
+    }
+
+    .markdown-body ul, .markdown-body ol {
+      margin-bottom: 16px;
+      padding-left: 24px;
+    }
+
+    .markdown-body li {
+      margin-bottom: 6px;
+    }
+
+    .markdown-body pre {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .markdown-body code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 3px 6px;
+      border-radius: 4px;
+      color: #ff79c6;
+    }
+
+    .markdown-body pre code {
+      background: transparent;
+      padding: 0;
+      color: #f8f8f2;
+      display: block;
+    }
+
+    /* Tables styling */
+    .markdown-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+    }
+
+    .markdown-body th, .markdown-body td {
+      border: 1px solid var(--border-color);
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    .markdown-body th {
+      background: rgba(255, 255, 255, 0.04);
+      font-weight: 600;
+    }
+
+    .markdown-body tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    /* Blockquotes */
+    .markdown-body blockquote {
+      border-left: 4px solid var(--border-color);
+      padding-left: 16px;
+      color: var(--text-muted);
+      margin: 16px 0;
+      font-style: italic;
+    }
+
+    /* Callouts (Obsidian style) */
+    .markdown-body blockquote.callout {
+      border-left-width: 4px;
+      border-left-style: solid;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 20px 0;
+      background: var(--bg-card);
+      font-style: normal;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .callout-title {
+      font-weight: 700;
+      font-size: 0.85em;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+    }
+
+    .callout-note { border-left-color: #60a5fa !important; }
+    .callout-note .callout-title { color: #60a5fa; }
+    
+    .callout-important { border-left-color: #a78bfa !important; }
+    .callout-important .callout-title { color: #a78bfa; }
+    
+    .callout-warning { border-left-color: #fb923c !important; }
+    .callout-warning .callout-title { color: #fb923c; }
+    
+    .callout-caution { border-left-color: #f87171 !important; }
+    .callout-caution .callout-title { color: #f87171; }
+    
+    .callout-tip { border-left-color: #34d399 !important; }
+    .callout-tip .callout-title { color: #34d399; }
+
+    /* Graph View Panel */
+    #graph-view {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #090b0f;
+      display: none;
+    }
+
+    #graph-canvas {
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    #graph-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* Graph HUD Overlay */
+    .graph-hud {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(20, 24, 33, 0.85);
+      border: 1px solid var(--border-color);
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      pointer-events: none;
+      backdrop-filter: blur(8px);
+    }
+
+    .graph-hud ul {
+      list-style: none;
+      margin-top: 6px;
+    }
+
+    .graph-hud li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .color-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Copy Button for Code Blocks */
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      opacity: 0;
+      transition: all 0.2s;
+    }
+
+    pre:hover .copy-btn {
+      opacity: 1;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar File Explorer & Navigation -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <h1 class="sidebar-title">
+        <span>📂</span> Obsidian Vault Viewer
+      </h1>
+      <div class="search-box">
+        <input type="text" id="search-input" class="search-input" placeholder="Search notes...">
+      </div>
+      <div class="view-toggles">
+        <button id="btn-doc" class="toggle-btn active">📄 Document</button>
+        <button id="btn-graph" class="toggle-btn">🕸️ Graph View</button>
+      </div>
+    </div>
+    
+    <div class="explorer" id="file-explorer">
+      <!-- Generated dynamically -->
+    </div>
+  </aside>
+
+  <!-- Main Viewer Pane -->
+  <main id="content-area">
+    <div class="top-bar">
+      <div class="breadcrumbs" id="breadcrumbs">
+        <!-- Generated dynamically -->
+      </div>
+    </div>
+    
+    <div class="view-panel">
+      <!-- Note Markdown Renderer -->
+      <div id="doc-view">
+        <div id="markdown-container" class="markdown-body">
+          <!-- Markdown outputs here -->
+        </div>
+      </div>
+      
+      <!-- Interactive Graph View -->
+      <div id="graph-view">
+        <canvas id="graph-canvas"></canvas>
+        <div class="graph-hud">
+          <strong>Vault Graph Legend</strong>
+          <ul>
+            <li><span class="color-dot" style="background: var(--color-concept)"></span> Concepts</li>
+            <li><span class="color-dot" style="background: var(--color-framework)"></span> Frameworks</li>
+            <li><span class="color-dot" style="background: var(--color-project)"></span> Projects</li>
+            <li><span class="color-dot" style="background: var(--color-tool)"></span> Tools</li>
+            <li><span class="color-dot" style="background: var(--color-other)"></span> Root / Other</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Global State
+    let currentNoteKey = '';
+    let graphInitialized = false;
+
+    // Check loaded vault data
+    if (!window.VAULT_DATA || Object.keys(window.VAULT_DATA).length === 0) {
+      document.getElementById('markdown-container').innerHTML = `
+        <div style="text-align: center; margin-top: 100px;">
+          <h2>No Documentation Loaded</h2>
+          <p style="color: var(--text-muted); margin-top: 10px;">
+            Please run the scraper script in your terminal to compile the documentation:
+          </p>
+          <pre style="margin-top: 20px; display: inline-block; text-align: left; padding: 12px 20px;">python3 generate_data.py</pre>
+          <p style="color: var(--text-muted); margin-top: 10px;">Then refresh this page.</p>
+        </div>
+      `;
+    } else {
+      // Find initial note
+      const keys = Object.keys(window.VAULT_DATA);
+      const homeKey = keys.find(k => k.includes('Home.md')) || keys.find(k => k.includes('00 - Project Home.md')) || keys[0];
+      
+      // Initialize view
+      initApp(homeKey);
+    }
+
+    function initApp(startKey) {
+      buildFileExplorer();
+      loadNote(startKey);
+      setupEventListeners();
+      
+      // Initialize Mermaid
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        securityLevel: 'loose',
+        flowchart: { useMaxWidth: true, htmlLabels: true }
+      });
+    }
+
+    // Load & Render Note
+    function loadNote(key) {
+      if (!window.VAULT_DATA[key]) return;
+      currentNoteKey = key;
+      
+      // Highlight in explorer
+      document.querySelectorAll('.tree-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.key === key);
+      });
+
+      // Update breadcrumbs
+      updateBreadcrumbs(key);
+
+      // Render Markdown
+      let markdownText = window.VAULT_DATA[key];
+      
+      // Render using marked.js
+      let htmlContent = marked.parse(markdownText);
+      
+      const container = document.getElementById('markdown-container');
+      container.innerHTML = htmlContent;
+
+      // Post-processes: Callouts, Copy Button, Wiki-links, Mermaid
+      processWikiLinks(container);
+      processTags(container);
+      processCallouts(container);
+      processCodeBlocks(container);
+      
+      // Re-trigger Mermaid
+      renderMermaidDiagrams();
+      
+      // Scroll to top
+      document.getElementById('doc-view').scrollTop = 0;
+    }
+
+    // Breadcrumbs Navigation
+    function updateBreadcrumbs(key) {
+      const container = document.getElementById('breadcrumbs');
+      const parts = key.split('/');
+      
+      let html = `<span class="breadcrumb-item" onclick="loadNote('${key}')">Vault</span>`;
+      let currentPath = '';
+      
+      parts.forEach((part, i) => {
+        html += ` <span class="separator">/</span> `;
+        if (i === parts.length - 1) {
+          // Last element is the file name
+          const displayTitle = part.replace(/\.md$/, '');
+          html += `<span style="color: #fff; font-weight: 500;">${displayTitle}</span>`;
+        } else {
+          // Directories
+          currentPath += (currentPath ? '/' : '') + part;
+          html += `<span class="breadcrumb-item">${part}</span>`;
+        }
+      });
+      container.innerHTML = html;
+    }
+
+    // Build collapsible Folder Explorer
+    function buildFileExplorer() {
+      const explorer = document.getElementById('file-explorer');
+      explorer.innerHTML = '';
+      
+      const structure = {};
+      const rootFiles = [];
+
+      Object.keys(window.VAULT_DATA).sort().forEach(key => {
+        const parts = key.split('/');
+        if (parts.length === 1) {
+          rootFiles.push(key);
+        } else {
+          const folder = parts[0];
+          if (!structure[folder]) structure[folder] = [];
+          structure[folder].push(key);
+        }
+      });
+
+      // Render Folders
+      Object.keys(structure).forEach(folder => {
+        const folderDiv = document.createElement('div');
+        folderDiv.className = 'tree-folder';
+        
+        const folderTitle = document.createElement('div');
+        folderTitle.className = 'folder-title';
+        folderTitle.innerHTML = `<span>📂 ${folder}</span> <span class="chevron">▼</span>`;
+        
+        const folderContent = document.createElement('div');
+        folderContent.className = 'folder-content';
+        
+        structure[folder].forEach(key => {
+          const item = document.createElement('a');
+          item.className = 'tree-item';
+          item.dataset.key = key;
+          item.textContent = key.split('/').pop().replace(/\.md$/, '');
+          item.onclick = () => loadNote(key);
+          folderContent.appendChild(item);
+        });
+
+        // Expand/Collapse click
+        folderTitle.onclick = () => {
+          const isCollapsed = folderContent.classList.toggle('collapsed');
+          folderTitle.querySelector('.chevron').textContent = isCollapsed ? '▶' : '▼';
+        };
+
+        folderDiv.appendChild(folderTitle);
+        folderDiv.appendChild(folderContent);
+        explorer.appendChild(folderDiv);
+      });
+
+      // Render Root Files
+      if (rootFiles.length > 0) {
+        const rootDiv = document.createElement('div');
+        rootDiv.style.marginTop = '10px';
+        rootFiles.forEach(key => {
+          const item = document.createElement('a');
+          item.className = 'tree-item';
+          item.dataset.key = key;
+          item.textContent = key.replace(/\.md$/, '');
+          item.onclick = () => loadNote(key);
+          rootDiv.appendChild(item);
+        });
+        explorer.appendChild(rootDiv);
+      }
+    }
+
+    // Parse Wiki Links: [[Path/File|Label]]
+    function resolveWikiLinkTarget(linkText) {
+      let target = linkText.trim();
+      if (window.VAULT_DATA[target]) return target;
+      if (window.VAULT_DATA[target + '.md']) return target + '.md';
+
+      const targetLower = target.toLowerCase();
+      
+      // Match by path suffixes
+      for (let key in window.VAULT_DATA) {
+        const keyLower = key.toLowerCase();
+        if (keyLower === targetLower || keyLower.endsWith('/' + targetLower) ||
+            keyLower === targetLower + '.md' || keyLower.endsWith('/' + targetLower + '.md')) {
+          return key;
+        }
+      }
+
+      // Match by file basename
+      const basename = target.split('/').pop().toLowerCase();
+      for (let key in window.VAULT_DATA) {
+        const keyBasename = key.split('/').pop().replace(/\.md$/, '').toLowerCase();
+        if (keyBasename === basename) {
+          return key;
+        }
+      }
+      return null;
+    }
+
+    function decodeHtmlEntities(str) {
+      const temp = document.createElement('textarea');
+      temp.innerHTML = str;
+      return temp.value;
+    }
+
+    function processWikiLinks(parentEl) {
+      // Let's grab the HTML and replace wiki link formats
+      let html = parentEl.innerHTML;
+      
+      // Wiki links pattern: [[Note Path]] or [[Note Path|Display Label]]
+      const wikiRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+      
+      html = html.replace(wikiRegex, (match, targetPath, displayLabel) => {
+        const decodedPath = decodeHtmlEntities(targetPath);
+        const resolved = resolveWikiLinkTarget(decodedPath);
+        const label = displayLabel ? decodeHtmlEntities(displayLabel) : decodedPath.split('/').pop().replace(/\.md$/, '');
+        
+        if (resolved) {
+          return `<a href="#" class="wiki-link" data-key="${resolved}">${label}</a>`;
+        } else {
+          return `<a href="#" class="wiki-link broken-link" title="Broken link: Note not found">${label}</a>`;
+        }
+      });
+      
+      parentEl.innerHTML = html;
+
+      // Add click handlers to wiki-links
+      parentEl.querySelectorAll('.wiki-link[data-key]').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          loadNote(link.dataset.key);
+        });
+      });
+    }
+
+    function processTags(parentEl) {
+      const walk = document.createTreeWalker(
+        parentEl,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: function(node) {
+            // Reject text nodes inside pre, code, anchor, style, or script elements
+            let parent = node.parentNode;
+            while (parent && parent !== parentEl) {
+              const tag = parent.tagName.toLowerCase();
+              if (tag === 'pre' || tag === 'code' || tag === 'a' || tag === 'style' || tag === 'script') {
+                return NodeFilter.FILTER_REJECT;
+              }
+              parent = parent.parentNode;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }
+      );
+
+      const textNodes = [];
+      let currentPageTextNode;
+      while (currentPageTextNode = walk.nextNode()) {
+        textNodes.push(currentPageTextNode);
+      }
+
+      // Match hashtags: starts with space/line start, followed by # and alphanumeric characters including slash/dash/underscore (with at least one letter)
+      const tagRegex = /(^|\s)#([a-zA-Z0-9_\-/]*[a-zA-Z][a-zA-Z0-9_\-/]*)/g;
+
+      textNodes.forEach(node => {
+        const text = node.nodeValue;
+        if (text.match(tagRegex)) {
+          const tempSpan = document.createElement('span');
+          tempSpan.innerHTML = text.replace(tagRegex, (match, prefix, tagName) => {
+            return `${prefix}<span class="tag" data-tag="#${tagName}">#${tagName}</span>`;
+          });
+          
+          while (tempSpan.firstChild) {
+            node.parentNode.insertBefore(tempSpan.firstChild, node);
+          }
+          node.parentNode.removeChild(node);
+        }
+      });
+
+      // Add click handler to filter by clicked tag
+      parentEl.querySelectorAll('.tag').forEach(tagEl => {
+        tagEl.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const tagQuery = tagEl.dataset.tag;
+          const searchInput = document.getElementById('search-input');
+          searchInput.value = tagQuery;
+          searchInput.dispatchEvent(new Event('input'));
+        });
+      });
+    }
+
+    // Process Obsidian Blockquote Callouts: > [!type] Callout Title
+    function processCallouts(parentEl) {
+      parentEl.querySelectorAll('blockquote').forEach(bq => {
+        const firstParagraph = bq.querySelector('p');
+        if (!firstParagraph) return;
+        
+        const match = firstParagraph.innerHTML.match(/^\[\!([A-Za-z]+)\]\s*(.*)/i);
+        if (match) {
+          const type = match[1].toLowerCase();
+          const extraTitle = match[2];
+          
+          bq.classList.add('callout', `callout-${type}`);
+          
+          // Clean the [!type] header text
+          firstParagraph.innerHTML = firstParagraph.innerHTML.replace(/^\[\!([A-Za-z]+)\]\s*/i, '');
+          
+          // Build custom header
+          const titleDiv = document.createElement('div');
+          titleDiv.className = 'callout-title';
+          
+          let icon = '💡';
+          if (type === 'important' || type === 'todo') icon = '📌';
+          if (type === 'warning') icon = '⚠️';
+          if (type === 'caution' || type === 'danger') icon = '🔥';
+          if (type === 'note' || type === 'info') icon = 'ℹ️';
+          if (type === 'tip') icon = '✔️';
+          
+          titleDiv.innerHTML = `${icon} ${extraTitle || type}`;
+          bq.insertBefore(titleDiv, bq.firstChild);
+        }
+      });
+    }
+
+    // Code blocks post-processing (copy buttons and formatting)
+    function processCodeBlocks(parentEl) {
+      parentEl.querySelectorAll('pre').forEach(pre => {
+        // If it's a mermaid diagram, mark it
+        const code = pre.querySelector('code');
+        if (code && code.className.includes('language-mermaid')) {
+          pre.outerHTML = `<div class="mermaid">${code.textContent}</div>`;
+          return;
+        }
+        
+        // standard code blocks get a copy button
+        pre.style.position = 'relative';
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.onclick = () => {
+          navigator.clipboard.writeText(code ? code.textContent : pre.textContent);
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+        };
+        pre.appendChild(copyBtn);
+      });
+    }
+
+    // Render Mermaid diagrams safely
+    function renderMermaidDiagrams() {
+      const diagrams = document.querySelectorAll('.mermaid');
+      diagrams.forEach((el, index) => {
+        // Clean out any raw markdown symbols that marked could have parsed inside
+        let text = el.textContent.trim();
+        // Replace html entities
+        text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+        
+        const id = `mermaid-svg-${index}`;
+        try {
+          mermaid.render(id, text).then(({ svg }) => {
+            el.innerHTML = svg;
+          }).catch(err => {
+            console.error("Mermaid Render Error: ", err);
+            el.innerHTML = `<pre style="border:1px solid #ff5555; padding: 10px; color:#ff5555;">Mermaid rendering error:\n${text}</pre>`;
+            // Clear internal mermaid error
+            const errSvg = document.getElementById(`d${id}`);
+            if (errSvg) errSvg.remove();
+          });
+        } catch(e) {
+          el.innerHTML = `<pre style="border:1px solid #ff5555; padding: 10px;">Mermaid exception: ${e.message}</pre>`;
+        }
+      });
+    }
+
+    // Search and Filter Functionality
+    function setupEventListeners() {
+      const searchInput = document.getElementById('search-input');
+      
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const treeItems = document.querySelectorAll('.tree-item');
+        const folders = document.querySelectorAll('.tree-folder');
+
+        if (!query) {
+          // Reset search state
+          treeItems.forEach(el => {
+            el.style.display = 'block';
+            el.innerHTML = el.dataset.key.split('/').pop().replace(/\.md$/, '');
+          });
+          folders.forEach(f => f.style.display = 'block');
+          return;
+        }
+
+        // Show folder matching or files matching
+        const folderMatching = new Set();
+        
+        treeItems.forEach(item => {
+          const key = item.dataset.key;
+          const noteName = key.split('/').pop().replace(/\.md$/, '').toLowerCase();
+          const content = (window.VAULT_DATA[key] || '').toLowerCase();
+          
+          const titleMatch = noteName.includes(query);
+          const contentMatch = content.includes(query);
+
+          if (titleMatch || contentMatch) {
+            item.style.display = 'block';
+            // Highlight text if title match
+            if (titleMatch) {
+              const baseName = key.split('/').pop().replace(/\.md$/, '');
+              const startIdx = baseName.toLowerCase().indexOf(query);
+              const matchedStr = baseName.substr(startIdx, query.length);
+              item.innerHTML = baseName.replace(matchedStr, `<span style="background:rgba(234, 179, 8, 0.4); color: #fff; padding: 1px 2px; border-radius: 2px;">${matchedStr}</span>`);
+            } else {
+              item.innerHTML = key.split('/').pop().replace(/\.md$/, '');
+            }
+            
+            // Add folder to display list
+            const parts = key.split('/');
+            if (parts.length > 1) {
+              folderMatching.add(parts[0]);
+            }
+          } else {
+            item.style.display = 'none';
+          }
+        });
+
+        // Hide folders that contain no matches
+        folders.forEach(f => {
+          const titleEl = f.querySelector('.folder-title span');
+          const folderName = titleEl.textContent.replace('📂 ', '');
+          if (folderMatching.has(folderName)) {
+            f.style.display = 'block';
+            f.querySelector('.folder-content').classList.remove('collapsed');
+            f.querySelector('.chevron').textContent = '▼';
+          } else {
+            // Check if folder contains any display items
+            const visibleItems = f.querySelectorAll('.tree-item[style="display: block;"]');
+            if (visibleItems.length > 0) {
+              f.style.display = 'block';
+            } else {
+              f.style.display = 'none';
+            }
+          }
+        });
+      });
+
+      // View Panel Toggles
+      const btnDoc = document.getElementById('btn-doc');
+      const btnGraph = document.getElementById('btn-graph');
+      const docView = document.getElementById('doc-view');
+      const graphView = document.getElementById('graph-view');
+
+      btnDoc.addEventListener('click', () => {
+        btnDoc.classList.add('active');
+        btnGraph.classList.remove('active');
+        docView.style.display = 'block';
+        graphView.style.display = 'none';
+      });
+
+      btnGraph.addEventListener('click', () => {
+        btnGraph.classList.add('active');
+        btnDoc.classList.remove('active');
+        docView.style.display = 'none';
+        graphView.style.display = 'block';
+        if (!graphInitialized) {
+          initGraphView();
+          graphInitialized = true;
+        }
+      });
+    }
+
+    // ==========================================
+    // INTERACTIVE GRAPH VIEW ENGINE (Canvas 2D)
+    // ==========================================
+    function initGraphView() {
+      const canvas = document.getElementById('graph-canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Build Graph Nodes and Edges from VAULT_DATA
+      const keys = Object.keys(window.VAULT_DATA);
+      const nodes = [];
+      const edges = [];
+      const nodeMap = {};
+
+      // Parse Directory type for coloring
+      function getNodeColor(key) {
+        if (key.startsWith('Concepts/')) return getComputedStyle(document.documentElement).getPropertyValue('--color-concept').trim();
+        if (key.startsWith('Frameworks/')) return getComputedStyle(document.documentElement).getPropertyValue('--color-framework').trim();
+        if (key.startsWith('Projects/')) return getComputedStyle(document.documentElement).getPropertyValue('--color-project').trim();
+        if (key.startsWith('Tools/')) return getComputedStyle(document.documentElement).getPropertyValue('--color-tool').trim();
+        return getComputedStyle(document.documentElement).getPropertyValue('--color-other').trim();
+      }
+
+      // Resize canvas to match container size
+      function resizeCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      }
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      // Create Nodes
+      keys.forEach((key, idx) => {
+        const radius = key.includes('Home') ? 8 : 5;
+        const node = {
+          id: key,
+          label: key.split('/').pop().replace(/\.md$/, ''),
+          x: canvas.width / 2 + (Math.random() - 0.5) * 300,
+          y: canvas.height / 2 + (Math.random() - 0.5) * 300,
+          vx: 0,
+          vy: 0,
+          radius: radius,
+          color: getNodeColor(key)
+        };
+        nodes.push(node);
+        nodeMap[key] = node;
+      });
+
+      // Parse links and construct edges
+      keys.forEach(key => {
+        const content = window.VAULT_DATA[key] || '';
+        const wikiRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+        let match;
+        while ((match = wikiRegex.exec(content)) !== null) {
+          const resolved = resolveWikiLinkTarget(match[1]);
+          if (resolved && resolved !== key && nodeMap[resolved]) {
+            edges.push({
+              source: key,
+              target: resolved,
+              sourceNode: nodeMap[key],
+              targetNode: nodeMap[resolved]
+            });
+          }
+        }
+      });
+
+      // Interaction States
+      let transform = { x: 0, y: 0, scale: 1 };
+      let hoveredNode = null;
+      let selectedNode = null;
+      let draggedNode = null;
+      let dragStart = { x: 0, y: 0 };
+      let mousePos = { x: 0, y: 0 };
+
+      // Helper to project screen coordinates to graph coordinates
+      function screenToGraph(sx, sy) {
+        return {
+          x: (sx - transform.x) / transform.scale,
+          y: (sy - transform.y) / transform.scale
+        };
+      }
+
+      // Physics loop
+      function updatePhysics() {
+        const width = canvas.width;
+        const height = canvas.height;
+        const center = { x: width / 2, y: height / 2 };
+
+        // 1. Repulsion between all nodes
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            let dx = nodes[j].x - nodes[i].x;
+            let dy = nodes[j].y - nodes[i].y;
+            let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            
+            const repdist = 160;
+            if (dist < repdist) {
+              let force = (repdist - dist) * 0.04;
+              let fx = (dx / dist) * force;
+              let fy = (dy / dist) * force;
+              nodes[i].vx -= fx;
+              nodes[i].vy -= fy;
+              nodes[j].vx += fx;
+              nodes[j].vy += fy;
+            }
+          }
+        }
+
+        // 2. Attraction along edges
+        edges.forEach(edge => {
+          let s = edge.sourceNode;
+          let t = edge.targetNode;
+          let dx = t.x - s.x;
+          let dy = t.y - s.y;
+          let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          let targetLength = 100;
+          let force = (dist - targetLength) * 0.015;
+          let fx = (dx / dist) * force;
+          let fy = (dy / dist) * force;
+          s.vx += fx;
+          s.vy += fy;
+          t.vx -= fx;
+          t.vy -= fy;
+        });
+
+        // 3. Centering force
+        nodes.forEach(node => {
+          if (node === draggedNode) return;
+          node.vx += (center.x - node.x) * 0.003;
+          node.vy += (center.y - node.y) * 0.003;
+
+          // Apply forces
+          node.x += node.vx;
+          node.y += node.vy;
+          
+          // Friction
+          node.vx *= 0.82;
+          node.vy *= 0.82;
+        });
+      }
+
+      // Rendering logic
+      function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.save();
+        ctx.translate(transform.x, transform.y);
+        ctx.scale(transform.scale, transform.scale);
+
+        // Draw Links
+        ctx.lineWidth = 1;
+        edges.forEach(edge => {
+          ctx.beginPath();
+          ctx.moveTo(edge.sourceNode.x, edge.sourceNode.y);
+          ctx.lineTo(edge.targetNode.x, edge.targetNode.y);
+          
+          // Highlight connection if node is hovered
+          if (hoveredNode && (edge.source === hoveredNode.id || edge.target === hoveredNode.id)) {
+            ctx.strokeStyle = 'rgba(139, 92, 246, 0.4)';
+            ctx.lineWidth = 2;
+          } else {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+            ctx.lineWidth = 1;
+          }
+          ctx.stroke();
+        });
+
+        // Draw Nodes
+        nodes.forEach(node => {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+          
+          const isCurrent = node.id === currentNoteKey;
+          const isHovered = hoveredNode && node.id === hoveredNode.id;
+          const isConnected = hoveredNode && edges.some(e => 
+            (e.source === hoveredNode.id && e.target === node.id) ||
+            (e.target === hoveredNode.id && e.source === node.id)
+          );
+
+          if (isCurrent) {
+            ctx.fillStyle = '#fff';
+            // Glowing ring around active note
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = node.color;
+          } else if (isHovered) {
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = node.color;
+          } else if (hoveredNode && !isConnected) {
+            // Fade out disconnected nodes when hovering
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.shadowBlur = 0;
+          } else {
+            ctx.fillStyle = node.color;
+            ctx.shadowBlur = 0;
+          }
+          
+          ctx.fill();
+          ctx.shadowBlur = 0; // reset shadow
+
+          // Node Text Labels
+          if (transform.scale > 0.6 || isHovered || isCurrent) {
+            ctx.fillStyle = isHovered || isCurrent ? '#fff' : 'rgba(255, 255, 255, 0.5)';
+            ctx.font = isHovered || isCurrent ? 'bold 11px Inter' : '10px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(node.label, node.x, node.y + node.radius + 15);
+          }
+        });
+
+        ctx.restore();
+      }
+
+      // Animation Frame
+      function animate() {
+        updatePhysics();
+        render();
+        requestAnimationFrame(animate);
+      }
+      requestAnimationFrame(animate);
+
+      // Event listeners for Canvas Dragging & Navigation
+      canvas.addEventListener('mousedown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const graphCoords = screenToGraph(sx, sy);
+
+        // Check node intersection
+        let clickedNode = null;
+        for (let node of nodes) {
+          const dx = node.x - graphCoords.x;
+          const dy = node.y - graphCoords.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < node.radius + 8) {
+            clickedNode = node;
+            break;
+          }
+        }
+
+        if (clickedNode) {
+          draggedNode = clickedNode;
+          selectedNode = clickedNode;
+        } else {
+          draggedNode = null;
+          dragStart = { x: e.clientX - transform.x, y: e.clientY - transform.y };
+        }
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        mousePos = { x: sx, y: sy };
+        const graphCoords = screenToGraph(sx, sy);
+
+        if (draggedNode) {
+          draggedNode.x = graphCoords.x;
+          draggedNode.y = graphCoords.y;
+        } else if (dragStart.x || dragStart.y) {
+          // Pan canvas
+          transform.x = e.clientX - dragStart.x;
+          transform.y = e.clientY - dragStart.y;
+        } else {
+          // Hover logic
+          let hit = null;
+          for (let node of nodes) {
+            const dx = node.x - graphCoords.x;
+            const dy = node.y - graphCoords.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < node.radius + 8) {
+              hit = node;
+              break;
+            }
+          }
+          hoveredNode = hit;
+        }
+      });
+
+      canvas.addEventListener('mouseup', (e) => {
+        // If click was quick, trigger loadNote
+        if (draggedNode && selectedNode === draggedNode) {
+          loadNote(draggedNode.id);
+          // Switch view back to Document
+          document.getElementById('btn-doc').click();
+        }
+        draggedNode = null;
+        selectedNode = null;
+        dragStart = { x: 0, y: 0 };
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        draggedNode = null;
+        dragStart = { x: 0, y: 0 };
+        hoveredNode = null;
+      });
+
+      // Zoom listener
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const graphCoords = screenToGraph(sx, sy);
+
+        const zoomFactor = 1.1;
+        const scaleChange = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
+        
+        // Clamp scale
+        const nextScale = Math.min(Math.max(transform.scale * scaleChange, 0.25), 3.0);
+        
+        // Zoom centered on cursor
+        transform.x = sx - graphCoords.x * nextScale;
+        transform.y = sy - graphCoords.y * nextScale;
+        transform.scale = nextScale;
+      });
+    }
+  </script>
+</body>
+</html>
