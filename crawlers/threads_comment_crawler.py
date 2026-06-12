@@ -1,13 +1,26 @@
 """
 Threads comment crawler — Playwright public post depth search → bronze JSONL.
 
-Runs OFFLINE (Colab / a worker / locally), NOT inside the AgentBase runtime.
-It reads raw records from the latest bronze threads file (threads_<ts>.jsonl),
-navigates to each thread's post_url, scrolls to load comments, and writes
-consolidated comments to data/raw/threads_comments_<ts>.jsonl.
+Runs OFFLINE (Colab / a worker / locally), NOT inside the AgentBase runtime: it drives a headless
+Chromium browser, which is too heavy and easily blocked from datacenter IPs. It reads raw records from
+the latest bronze threads file (threads_<ts>.jsonl), navigates to each thread's post_url,
+scrolls to load comments, and writes consolidated comments to data/raw/threads_comments_<ts>.jsonl.
+
+Raw record schema (ThreadComment) — kept rich on purpose; the connector normalizes on read:
+    comment_hash_id, parent_post_hash_id, parent_post_url, author, content, posted_at, crawled_at, images_base64
+
+Configs read from [config.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/config.py):
+    - SCROLL_TIMES: Number of times to scroll down to load search results.
+
+Run:
+    # one-off install (not part of the agent image):
+    pip install -r requirements-crawler.txt && python -m playwright install chromium
+    python crawlers/threads_comment_crawler.py
 
 Run:
     python -m crawlers.threads_comment_crawler
+
+In Colab: import and call crawl_comments(); a running event loop is handled automatically.
 """
 
 from __future__ import annotations
