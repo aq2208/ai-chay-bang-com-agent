@@ -34,7 +34,12 @@ def save(records: list[dict], source: str, raw_dir: Path | None = None, timestam
 def latest_path(source: str, raw_dir: Path | None = None) -> Path | None:
     """Return the most recent bronze file for a source (by name; names are timestamp-sorted)."""
     out_dir = raw_dir or RAW_DIR
-    files = sorted(out_dir.glob(f"{source}_*.jsonl"))
+    files = []
+    for f in out_dir.glob(f"{source}_*.jsonl"):
+        if source == "threads" and f.name.startswith("threads_comments_"):
+            continue
+        files.append(f)
+    files = sorted(files)
     return files[-1] if files else None
 
 

@@ -7,7 +7,7 @@ the latest bronze threads file (threads_<ts>.jsonl), navigates to each thread's 
 scrolls to load comments, and writes consolidated comments to data/raw/threads_comments_<ts>.jsonl.
 
 Raw record schema (ThreadComment) — kept rich on purpose; the connector normalizes on read:
-    comment_hash_id, parent_post_hash_id, parent_post_url, author, content, posted_at, crawled_at, images_base64
+    comment_hash_id, parent_post_hash_id, parent_post_url, author, content, posted_at, crawled_at, comment_url, images_base64
 
 Input:
     Latest (or specified) bronze threads JSONL file: data/raw/`threads_<YYYYMMDD_HHMM>.jsonl`.
@@ -66,6 +66,7 @@ class ThreadComment(BaseModel):
     content: str = Field(description="Raw comment text")
     posted_at: str = Field(description="When the user commented (YYYY-MM-DD HH:MM:SS)")
     crawled_at: str = Field(description="When we crawled it")
+    comment_url: str = Field(default="", description="Permalink to the comment or commenter profile")
     images_base64: list = Field(default=[], description="Attached images as base64 data URIs")
 
 
@@ -133,6 +134,24 @@ async def _crawl_comments_for_thread(
                 if is_parent:
                     continue
 
+                # ── comment URL ──
+                comment_url = ""
+                try:
+                    comment_link = article.locator('a[href*="/post/"]')
+                    if await comment_link.count() > 0:
+                        href = await comment_link.first.get_attribute("href")
+                        if href:
+                            if href.startswith("/"):
+                                comment_url = f"https://www.threads.net{href}"
+                            else:
+                                comment_url = href
+                except Exception:
+                    pass
+                if not comment_url and author:
+                    clean_author = author.strip().lstrip("@")
+                    if clean_author:
+                        comment_url = f"https://www.threads.net/@{clean_author}"
+
                 # ── time ──
                 posted_at_str = "Unknown"
                 time_el = article.locator("time")
@@ -167,6 +186,7 @@ async def _crawl_comments_for_thread(
                         content=content,
                         posted_at=posted_at_str,
                         crawled_at=crawled_at,
+                        comment_url=comment_url,
                         images_base64=images_b64,
                     )
                     comments.append(comment.model_dump())
