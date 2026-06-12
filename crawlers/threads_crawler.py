@@ -8,10 +8,19 @@ data/raw/threads_<ts>.jsonl; the agent's connectors/threads.py reads that bronze
 Raw record schema (SocialPost) — kept rich on purpose; the connector normalizes on read:
     post_hash_id, platform, matched_keyword, author, content, posted_at, crawled_at, images_base64
 
+Configs read from [config.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/config.py):
+    - KEYWORDS: List of keywords/search queries to crawl on Threads.
+    - DAYS_BACK: Time window in days to fetch posts (used to calculate max age filter).
+    - SCROLL_TIMES: Number of times to scroll down to load search results.
+
 Run:
     # one-off install (not part of the agent image):
     pip install -r requirements-crawler.txt && python -m playwright install chromium
     python crawlers/threads_crawler.py            # crawls config.KEYWORDS, writes bronze
+
+Run:
+    python -m crawlers.threads_crawler
+
 
 In Colab: import and call crawl(); a running event loop is handled automatically.
 """
@@ -30,7 +39,7 @@ from dateutil import parser
 from playwright.async_api import async_playwright
 from pydantic import BaseModel, Field
 
-from config import KEYWORDS, DAYS_BACK
+from config import KEYWORDS, DAYS_BACK, SCROLL_TIMES
 from crawlers import bronze
 
 _USER_AGENT = (
@@ -86,6 +95,7 @@ async def _crawl_keyword(
             articles = await page.locator('div[data-pressable-container="true"]').all()
 
         crawled_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        post_times = []
 
         for article in articles:
             try:
@@ -96,6 +106,7 @@ async def _crawl_keyword(
                     dt_str = await time_el.first.get_attribute("datetime")
                     if dt_str:
                         post_time = parser.isoparse(dt_str)
+                        post_times.append(post_time)
                         age_h = (datetime.now(timezone.utc) - post_time).total_seconds() / 3600
                         if age_h > max_age_hours:
                             continue
@@ -142,6 +153,15 @@ async def _crawl_keyword(
                     posts.append(post.model_dump())
             except Exception:
                 continue
+
+        furthest_str = "N/A"
+        nearest_str = "N/A"
+        if post_times:
+            oldest_time = min(post_times)
+            newest_time = max(post_times)
+            furthest_str = oldest_time.strftime("%d/%m/%Y")
+            nearest_str = newest_time.strftime("%d/%m/%Y")
+        print(f"  found total {len(articles)} post(s), furthest post is: {furthest_str}, nearest post is: {nearest_str}")
     except Exception as e:
         print(f"  ❌ error on '{keyword}': {e}")
     finally:
@@ -174,7 +194,7 @@ async def _run(keywords: list[str], scroll_times: int, max_age_hours: int) -> li
 
 def crawl(
     keywords: list[str] | None = None,
-    scroll_times: int = 4,
+    scroll_times: int | None = None,
     max_age_hours: int | None = None,
     save_bronze: bool = True,
 ) -> list[dict]:
@@ -185,7 +205,15 @@ def crawl(
     Works both as a script (no running loop) and in Colab (running loop → nest_asyncio).
     """
     keywords = keywords or KEYWORDS
+    scroll_times = scroll_times if scroll_times is not None else SCROLL_TIMES
     max_age_hours = max_age_hours if max_age_hours is not None else DAYS_BACK * 24
+
+    print("=" * 56)
+    print("🚀 Starting Threads Crawler...")
+    print(f"   Keywords:     {keywords}")
+    print(f"   Scroll Times: {scroll_times}")
+    print(f"   Max Age:      {max_age_hours} hours")
+    print("=" * 56)
 
     try:
         loop = asyncio.get_running_loop()
