@@ -224,7 +224,7 @@ async def _run(threads: list[dict], scroll_times: int) -> list[dict]:
 
 def crawl_comments(
     threads_file_path: str | Path | None = None,
-    scroll_times: int = 2,
+    scroll_times: int = SCROLL_TIMES,
     save_bronze: bool = True,
 ) -> list[dict]:
     """
