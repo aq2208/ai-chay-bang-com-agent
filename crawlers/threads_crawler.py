@@ -6,7 +6,7 @@ Chromium browser, which is too heavy and easily blocked from datacenter IPs. It 
 data/raw/threads_<ts>.jsonl; the agent's connectors/threads.py reads that bronze file.
 
 Raw record schema (SocialPost) — kept rich on purpose; the connector normalizes on read:
-    post_hash_id, platform, matched_keyword, author, content, posted_at, crawled_at, images_base64
+    post_hash_id, platform, matched_keyword, author, content, posted_at, crawled_at, post_url, images_base64
 
 Configs read from [config.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/config.py):
     - KEYWORDS: List of keywords/search queries to crawl on Threads.
@@ -56,6 +56,7 @@ class SocialPost(BaseModel):
     content: str = Field(description="Raw post text")
     posted_at: str = Field(description="When the user posted (YYYY-MM-DD HH:MM:SS)")
     crawled_at: str = Field(description="When we crawled it")
+    post_url: str = Field(default="", description="Original post URL or fallback profile link")
     images_base64: list = Field(default=[], description="Attached images as base64 data URIs")
 
 
@@ -99,6 +100,20 @@ async def _crawl_keyword(
 
         for article in articles:
             try:
+                # ── post URL ──
+                post_url = ""
+                try:
+                    post_link = article.locator('a[href*="/post/"]')
+                    if await post_link.count() > 0:
+                        href = await post_link.first.get_attribute("href")
+                        if href:
+                            if href.startswith("/"):
+                                post_url = f"https://www.threads.net{href}"
+                            else:
+                                post_url = href
+                except Exception:
+                    pass
+
                 # ── time filter ──
                 posted_at_str = "Unknown"
                 time_el = article.locator("time")
@@ -139,6 +154,10 @@ async def _crawl_keyword(
 
                 # ── keep if enough text OR an image ──
                 if len(content) > 15 or images_b64:
+                    if not post_url and author:
+                        clean_author = author.strip().lstrip("@")
+                        if clean_author:
+                            post_url = f"https://www.threads.net/@{clean_author}"
                     hash_input = content if content else f"{author}_{posted_at_str}"
                     post = SocialPost(
                         post_hash_id=hashlib.md5(hash_input.encode("utf-8")).hexdigest(),
@@ -148,6 +167,7 @@ async def _crawl_keyword(
                         content=content,
                         posted_at=posted_at_str,
                         crawled_at=crawled_at,
+                        post_url=post_url,
                         images_base64=images_b64,
                     )
                     posts.append(post.model_dump())
