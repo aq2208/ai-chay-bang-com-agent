@@ -6,9 +6,9 @@ To prevent datacenter IP blocking and avoid heavy browser packages in the main a
 
 ## Directory Structure
 
-- [threads_crawler.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/crawlers/threads_crawler.py): Crawls Threads posts matching keywords configured in `config.py`.
-- [threads_comment_crawler.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/crawlers/threads_comment_crawler.py): Crawls replies/comments of scraped Threads posts.
-- [bronze.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/crawlers/bronze.py): Shared utility module to read/write raw files in the `data/raw/` directory.
+- [threads_crawler.py](./threads_crawler.py): Crawls Threads posts matching keywords configured in `config.py`.
+- [threads_comment_crawler.py](./threads_comment_crawler.py): Crawls replies/comments of scraped Threads posts.
+- [bronze.py](./bronze.py): Shared utility module to read/write raw files in the `data/raw/` directory.
 
 ## Getting Started
 

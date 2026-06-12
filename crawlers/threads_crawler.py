@@ -12,9 +12,9 @@ Input:
     None (reads crawler parameters dynamically from configuration).
 
 Output:
-    Consolidated raw post records saved to [data/raw/](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/data/raw/) as `threads_<YYYYMMDD_HHMM>.jsonl`.
+    Raw post records saved to data/raw/ as `threads_<YYYYMMDD_HHMM>.jsonl`.
 
-Configs read from [config.py](file:///Users/lap15864-local/temp/claw-a-thon/ai-chay-bang-com-agent/config.py):
+Configs read from config.py:
     - KEYWORDS: List of keywords/search queries to crawl on Threads.
     - DAYS_BACK: Time window in days to fetch posts (used to calculate max age filter).
     - SCROLL_TIMES: Number of times to scroll down to load search results.
