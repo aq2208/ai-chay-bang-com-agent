@@ -53,7 +53,8 @@ body {
 
 /* Glassmorphism details */
 .backdrop-blur-xs {
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 /* 3D Button Depth Styling */
