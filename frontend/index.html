@@ -251,17 +251,16 @@
                                      <td class="p-3 text-xs text-red-400/80 max-w-xs">
                                          <div class="flex items-center justify-between space-x-2">
                                              <span class="truncate block max-w-[200px]" :title="item.error_message" x-text="item.error_message || '—'"></span>
-                                             <template x-if="item.error_message">
-                                                 <button @click="showErrorModal(item.error_message)" 
-                                                         class="text-cyan-400 hover:text-cyan-300 transition-colors p-1 bg-cyan-950/40 hover:bg-cyan-900/40 border border-cyan-800/30 rounded focus:outline-none flex items-center justify-center cursor-pointer shrink-0"
-                                                         style="box-shadow: none !important; transform: none !important;"
-                                                         title="Xem chi tiết lỗi">
-                                                     <!-- Info Icon -->
-                                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                                                         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                                                     </svg>
-                                                 </button>
-                                             </template>
+                                             <button x-show="item.error_message" 
+                                                     @click="showErrorModal(item.error_message)" 
+                                                     class="text-cyan-400 hover:text-cyan-300 transition-colors p-1 bg-cyan-950/40 hover:bg-cyan-900/40 border border-cyan-800/30 rounded focus:outline-none flex items-center justify-center cursor-pointer shrink-0"
+                                                     style="box-shadow: none !important; transform: none !important;"
+                                                     title="Xem chi tiết lỗi">
+                                                 <!-- Info Icon -->
+                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                                 </svg>
+                                             </button>
                                          </div>
                                      </td>
                                 </tr>
@@ -337,6 +336,6 @@
     </div>
 
     <!-- JS Logic Scripts -->
-    <script src="app.js"></script>
+    <script src="app.js?v=1.0.2"></script>
 </body>
 </html>
