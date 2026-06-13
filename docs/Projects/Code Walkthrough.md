@@ -115,7 +115,7 @@ Functions:
 
 ```python
 is_negative("Zalopay bị lỗi rồi")     → True
-is_negative("ZaloPay tiện lợi lắm")   → False
+is_negative("Zalopay tiện lợi lắm")   → False
 filter_negative(posts)                 → keeps only negatives
 ```
 
@@ -296,7 +296,7 @@ path   = save_report(report, job_name="Social Media")
 
 Report format:
 ```
-# ZaloPay Complaint Report — Social Media
+# Zalopay Complaint Report — Social Media
 **Date**: 2026-06-10 | **Total Issues**: 3 | **Total Mentions**: 6
 
 ## Executive Summary
@@ -321,7 +321,7 @@ result = check_report(report, items)
 ```
 
 Checks (only applied when items is non-empty):
-- Title starts with `# ZaloPay Complaint Report`
+- Title starts with `# Zalopay Complaint Report`
 - `## Executive Summary` section present
 - Issue table header row present
 - At least one data row

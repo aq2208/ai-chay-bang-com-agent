@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+load_dotenv(override=True)
 
 # ── LLM Provider ──────────────────────────────────────────────────────────
 # Supported: anthropic | google | openai
@@ -83,13 +83,13 @@ KEYWORDS = [
 SENTIMENT_THRESHOLD      = 0.75   # below this → ask LLM as tiebreaker
 GROUPING_THRESHOLD       = 0.82   # cosine similarity to merge issues
 KB_SIMILARITY_THRESHOLD  = 0.48   # cosine similarity floor to accept a KB match
-DAYS_BACK                = 2      # how many days back to fetch data
+DAYS_BACK                = 1      # how many days back to fetch data
 SCROLL_TIMES             = 4      # how many times to scroll down to load search results
 
 
 # ── Server & Scheduler ────────────────────────────────────────────────────
 HOST                     = os.getenv("HOST", "0.0.0.0")
-PORT                     = int(os.getenv("PORT", "8000"))
+PORT                     = int(os.getenv("PORT", "8080"))
 JIRA_SCHEDULE_HOUR       = int(os.getenv("JIRA_SCHEDULE_HOUR", "8"))
 JIRA_SCHEDULE_MINUTE     = int(os.getenv("JIRA_SCHEDULE_MINUTE", "0"))
 SOCIAL_SCHEDULE_HOUR     = int(os.getenv("SOCIAL_SCHEDULE_HOUR", "8"))

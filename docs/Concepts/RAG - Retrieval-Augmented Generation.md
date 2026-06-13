@@ -254,7 +254,7 @@ Index your KB docs once at setup time. At runtime, just call `collection.query()
 
 ---
 
-## In Your Pipeline (ZaloPay Project)
+## In Your Pipeline (Zalopay Project)
 
 ### RAG Is Stage 7, Not a Conversational Tool
 

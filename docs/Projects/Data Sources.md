@@ -62,7 +62,7 @@ MOCK_DATA = [
     {
         "id": "TH-3001",
         "source": "threads",
-        "text": "ZaloPay login OTP không về điện thoại. Đợi 10 phút vẫn không thấy.",
+        "text": "Zalopay login OTP không về điện thoại. Đợi 10 phút vẫn không thấy.",
         "images": [],
         "timestamp": "2026-06-10T07:00:00",
     },
@@ -159,7 +159,7 @@ import requests
 
 PAGE_ID = "your_page_id"
 ACCESS_TOKEN = "your_page_access_token"
-KEYWORDS = ["ZaloPay", "zalopay", "ví điện tử lỗi", "nạp tiền lỗi"]
+KEYWORDS = ["Zalopay", "zalopay", "ví điện tử lỗi", "nạp tiền lỗi"]
 
 def fetch_facebook_page_comments(days_back: int = 1) -> list[dict]:
     """Fetch comments on your page — most common source of complaints."""
@@ -273,7 +273,7 @@ Threads has a **keyword search endpoint** — use it to find posts mentioning yo
 import requests
 
 THREADS_ACCESS_TOKEN = "your_threads_token"
-KEYWORDS = ["ZaloPay", "zalopay", "lỗi ví"]
+KEYWORDS = ["Zalopay", "zalopay", "lỗi ví"]
 
 def fetch_threads_by_keyword(days_back: int = 1) -> list[dict]:
     """Search Threads posts by keyword."""

@@ -1,6 +1,6 @@
 """
 Facebook Graph API connector.
-Fetches posts and comments from one or more ZaloPay Facebook pages.
+Fetches posts and comments from one or more Zalopay Facebook pages.
 """
 
 from __future__ import annotations
@@ -9,7 +9,8 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-from config import FB_PAGE_IDS, FB_ACCESS_TOKEN, KEYWORDS, DAYS_BACK
+import os
+import config
 
 _BASE = "https://graph.facebook.com/v20.0"
 
@@ -21,19 +22,23 @@ def fetch() -> list[dict]:
     Returns:
         List of items with keys: id, source, text, images, timestamp
     """
-    if not FB_PAGE_IDS or not FB_ACCESS_TOKEN:
+    page_ids = config.FB_PAGE_IDS
+    token = os.getenv("FB_ACCESS_TOKEN") or config.FB_ACCESS_TOKEN
+
+    if not page_ids or not token or token == "...":
         raise RuntimeError(
             "Facebook credentials not configured. "
             "Set FB_PAGE_IDS and FB_ACCESS_TOKEN in .env — or use dry_run=True."
         )
 
-    since_ts = int((datetime.now(timezone.utc) - timedelta(days=DAYS_BACK)).timestamp())
+    since_ts = int((datetime.now(timezone.utc) - timedelta(days=config.DAYS_BACK)).timestamp())
     items: list[dict] = []
 
-    for page_id in FB_PAGE_IDS:
+    for page_id in page_ids:
         items.extend(_fetch_one_page(page_id, since_ts))
 
     return items
+
 
 
 # ── Private helpers ────────────────────────────────────────────────────────
@@ -53,8 +58,9 @@ def _fetch_one_page(page_id: str, since_ts: int) -> list[dict]:
 
 
 def _get_feed(page_id: str, since_ts: int) -> list[dict]:
+    token = os.getenv("FB_ACCESS_TOKEN") or config.FB_ACCESS_TOKEN
     params = {
-        "access_token": FB_ACCESS_TOKEN,
+        "access_token": token,
         "fields": "id,message,story,created_time,attachments{media{image{src}},type}",
         "since": since_ts,
         "limit": 100,
@@ -63,8 +69,9 @@ def _get_feed(page_id: str, since_ts: int) -> list[dict]:
 
 
 def _get_comments(post_id: str) -> list[dict]:
+    token = os.getenv("FB_ACCESS_TOKEN") or config.FB_ACCESS_TOKEN
     params = {
-        "access_token": FB_ACCESS_TOKEN,
+        "access_token": token,
         "fields": "id,message,created_time",
         "limit": 100,
     }
@@ -87,7 +94,8 @@ def _paginate(url: str, params: dict, max_pages: int = 10) -> list[dict]:
 
 def _matches(text: str) -> bool:
     lower = text.lower()
-    return any(kw.lower() in lower for kw in KEYWORDS)
+    return any(kw.lower() in lower for kw in config.KEYWORDS)
+
 
 
 def _images(post: dict) -> list[str]:

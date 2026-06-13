@@ -47,9 +47,10 @@ def run(dry_run: bool = True) -> dict:
         from mock_data import get_mock_social
         raw = get_mock_social()
     else:
-        from connectors.facebook import fetch as fetch_fb
+        # Facebook Graph API is bypassed due to API auth/request errors (400 Bad Request).
+        # We only crawl from Threads for the social media dataset.
         from connectors.threads import fetch as fetch_th
-        raw = fetch_fb() + fetch_th()
+        raw = fetch_th()
     _log(f"Step 1/8 — {len(raw)} posts fetched")
 
     # ── Step 2: Preprocess ────────────────────────────────────────────────

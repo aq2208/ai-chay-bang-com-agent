@@ -85,7 +85,7 @@ When you pass text to an embedding model or LLM, the model first runs it through
 Example of what the model internally sees:
 ```
 "unhappiness"       → ["un", "happiness"]
-"ZaloPay"           → ["Zalo", "Pay"]
+"Zalopay"           → ["Zalo", "Pay"]
 "xk92jf"            → ["x", "k", "9", "2", "j", "f"]   ← unknown, falls back to chars
 "http://fb.com/123" → ["http", "://", "fb", ".", "com", "/", "1", "2", "3", ...]
 ```
@@ -136,7 +136,7 @@ Useful when handling Vietnamese and English differently:
 from langdetect import detect
 
 lang = detect("Zalopay bị lỗi rồi")  # → "vi"
-lang = detect("ZaloPay is broken")    # → "en"
+lang = detect("Zalopay is broken")    # → "en"
 ```
 
 `langdetect` can misfire on very short texts (< 20 characters). Always apply length filtering before language detection.
@@ -246,7 +246,7 @@ deduplicate()         ← drop exact near-duplicates
 
 ---
 
-## In Your Pipeline (ZaloPay Project)
+## In Your Pipeline (Zalopay Project)
 
 ### Where Preprocessing Runs
 
@@ -294,7 +294,7 @@ The downstream sentiment model truncates inputs at 512 tokens. Since preprocessi
 ### Keyword Matching Depends on Consistent Normalization
 
 After Stage 1, the keyword filter (Stage 2) checks for terms like `"zalopay"`, `"nạp tiền"`, `"ví điện tử"`. This only works reliably if the text is:
-- Lowercased (so `"ZaloPay"` matches `"zalopay"`)
+- Lowercased (so `"Zalopay"` matches `"zalopay"`)
 - NFC normalized (so the Vietnamese compound `"nạp tiền"` is byte-for-byte identical to the keyword string)
 
 Skipping normalization causes keyword misses that are invisible and hard to debug.

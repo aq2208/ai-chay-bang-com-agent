@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zalopay Complaint Analytics — Control Center</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        orbitron: ['Orbitron', 'sans-serif'],
+                        mono: ['"Share Tech Mono"', 'monospace'],
+                    },
+                    boxShadow: {
+                        neon: '0 0 15px rgba(239, 68, 68, 0.7), 0 0 30px rgba(239, 68, 68, 0.5)',
+                        cyan: '0 0 15px rgba(6, 182, 212, 0.7), 0 0 30px rgba(6, 182, 212, 0.5)',
+                        green: '0 0 15px rgba(34, 197, 94, 0.7), 0 0 30px rgba(34, 197, 94, 0.5)',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="style.css?v=1.0.4">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen overflow-x-hidden relative"
+      x-data="appState()"
+      x-init="initApp()"
+      @hashchange.window="currentHash = window.location.hash || '#crawler'">
+
+    <!-- Ambient Siren Warning Lights Overlay (blinks red during execution) -->
+    <div class="fixed inset-0 pointer-events-none z-50 transition-opacity duration-300 bg-red-950/20 opacity-0"
+         :class="isProcessing ? 'animate-pulse opacity-100' : ''"></div>
+
+    <!-- Header Navigation -->
+    <header class="border-b border-cyan-900/50 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-3 h-3 bg-cyan-500 rounded-full animate-ping"></div>
+                <h1 class="font-orbitron font-bold text-lg tracking-wider text-cyan-400">
+                    ZALOPAY COMPLAINT ANALYTICS
+                </h1>
+            </div>
+            <nav class="flex space-x-1">
+                <a href="#dashboard"
+                   class="px-4 py-2 rounded font-orbitron text-sm tracking-widest transition-all duration-200 border"
+                   :class="currentHash === '#dashboard' ? 'border-cyan-500 bg-cyan-950/30 text-cyan-300' : 'border-transparent text-slate-400 hover:text-slate-200'">
+                    DASHBOARD
+                </a>
+                <a href="#crawler"
+                   class="px-4 py-2 rounded font-orbitron text-sm tracking-widest transition-all duration-200 border"
+                   :class="currentHash === '#crawler' ? 'border-red-500 bg-red-950/30 text-red-400 shadow-sm' : 'border-transparent text-slate-400 hover:text-slate-200'">
+                    CONTROL COMMAND
+                </a>
+                <a href="#history"
+                   class="px-4 py-2 rounded font-orbitron text-sm tracking-widest transition-all duration-200 border"
+                   :class="currentHash === '#history' ? 'border-cyan-500 bg-cyan-950/30 text-cyan-300' : 'border-transparent text-slate-400 hover:text-slate-200'">
+                    HISTORY LOGS
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- App Container -->
+    <main class="max-w-7xl mx-auto px-6 py-8 relative z-10">
+        
+        <!-- ==================== TAB 1: CRAWLER COMMAND ==================== -->
+        <div x-show="currentHash === '#crawler'" x-cloak class="space-y-8">
+            <div class="text-center max-w-2xl mx-auto mb-10">
+                <p class="text-red-500 uppercase tracking-widest font-orbitron text-xs font-bold">MUTUAL EXCLUSION CENTRAL COMMAND</p>
+                <h2 class="text-3xl font-orbitron font-extrabold mt-2 tracking-wide text-slate-100">CRAWLER DESTRUCTION PROTOCOL</h2>
+                <p class="text-slate-400 text-sm mt-2">
+                    Lựa chọn phương thức cào dữ liệu bên dưới. Hệ thống sẽ khóa đồng thời (concurrency lock) để ngăn ngừa tình trạng chạy trùng lặp.
+                </p>
+            </div>
+
+            <!-- The Swesty Meme Dual Buttons Panel -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto items-stretch">
+                
+                <!-- BUTTON 1: JIRA PIPELINE -->
+                <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-8 flex flex-col justify-between items-center relative overflow-hidden group hover:border-cyan-500 hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all duration-300">
+                    <div class="absolute inset-0 bg-gradient-to-b from-cyan-950/5 to-transparent pointer-events-none"></div>
+                    
+                    <div class="text-center space-y-2 mb-6">
+                        <div class="text-cyan-500 uppercase tracking-widest font-orbitron text-xs font-bold">OPTION A</div>
+                        <h3 class="text-xl font-orbitron font-bold text-slate-200">World Peace but with Brainrot</h3>
+                        <p class="text-slate-400 text-xs max-w-xs">Kích hoạt tiến trình cào dữ liệu Jira, phân tích và gán nhãn khiếu nại của khách hàng.</p>
+                    </div>
+
+                    <!-- 3D Red Button & Glass Cover Component -->
+                    <div class="my-8 relative w-48 h-48 flex items-center justify-center">
+                        <!-- Glass Protective Cover -->
+                        <div class="group/shield absolute inset-0 border border-slate-700/60 rounded-full bg-slate-950/20 backdrop-blur-xs flex items-center justify-center transition-all duration-500 z-20 cursor-pointer"
+                             :class="glassOpenA ? 'opacity-0 scale-125 pointer-events-none' : 'opacity-100 scale-100'"
+                             @click="glassOpenA = true; appendLog('[SYSTEM]: Lồng bảo vệ JIRA đã được mở. Sẵn sàng kích hoạt.')">
+                            <span class="text-cyan-500/90 group-hover/shield:text-cyan-400 group-hover/shield:opacity-100 group-hover/shield:animate-none font-orbitron font-black text-[10px] tracking-widest uppercase animate-pulse select-none text-center px-4">CLICK TO OPEN SHIELD</span>
+                        </div>
+
+                        <!-- 3D Red Button Base -->
+                        <div class="w-36 h-36 rounded-full bg-slate-950 shadow-inner flex items-center justify-center border border-slate-800 relative">
+                            <button class="w-28 h-28 rounded-full transition-all duration-150 absolute"
+                                    :class="[
+                                        isProcessing ? 'bg-red-800/40 text-red-950 cursor-not-allowed border-red-900' : 'bg-red-600 active:bg-red-700 text-white cursor-pointer active:translate-y-1 hover:shadow-neon active:shadow-inner border-t border-red-400',
+                                        glassOpenA ? '' : 'pointer-events-none'
+                                    ]"
+                                    :disabled="isProcessing"
+                                    @click="triggerCrawl('jira')">
+                                <span class="font-orbitron font-extrabold tracking-wider text-xs select-none block"
+                                      x-text="isProcessing ? 'LOCKED' : 'ACTIVATE'">ACTIVATE</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Status Text -->
+                    <div class="mt-4 flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full" :class="glassOpenA ? 'bg-green-500 animate-ping' : 'bg-slate-500'"></span>
+                        <span class="text-xs font-mono text-slate-400" x-text="glassOpenA ? 'READY TO CRAWL' : 'SHIELD SECURED'">SHIELD SECURED</span>
+                    </div>
+                </div>
+
+                <!-- BUTTON 2: SOCIAL PIPELINE -->
+                <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-8 flex flex-col justify-between items-center relative overflow-hidden group hover:border-red-500 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all duration-300">
+                    <div class="absolute inset-0 bg-gradient-to-b from-red-950/5 to-transparent pointer-events-none"></div>
+                    
+                    <div class="text-center space-y-2 mb-6">
+                        <div class="text-red-500 uppercase tracking-widest font-orbitron text-xs font-bold">OPTION B</div>
+                        <h3 class="text-xl font-orbitron font-bold text-slate-200">No Peace but Brainrot is Gone</h3>
+                        <p class="text-slate-400 text-xs max-w-xs">Kích hoạt tiến trình cào dữ liệu mạng xã hội (Facebook, Threads) quét các khiếu nại liên quan.</p>
+                    </div>
+
+                    <!-- 3D Red Button & Glass Cover Component -->
+                    <div class="my-8 relative w-48 h-48 flex items-center justify-center">
+                        <!-- Glass Protective Cover -->
+                        <div class="group/shield absolute inset-0 border border-slate-700/60 rounded-full bg-slate-950/20 backdrop-blur-xs flex items-center justify-center transition-all duration-500 z-20 cursor-pointer"
+                             :class="glassOpenB ? 'opacity-0 scale-125 pointer-events-none' : 'opacity-100 scale-100'"
+                             @click="glassOpenB = true; appendLog('[SYSTEM]: Lồng bảo vệ SOCIAL đã được mở. Sẵn sàng kích hoạt.')">
+                            <span class="text-red-500/90 group-hover/shield:text-red-400 group-hover/shield:opacity-100 group-hover/shield:animate-none font-orbitron font-black text-[10px] tracking-widest uppercase animate-pulse select-none text-center px-4">CLICK TO OPEN SHIELD</span>
+                        </div>
+
+                        <!-- 3D Red Button Base -->
+                        <div class="w-36 h-36 rounded-full bg-slate-950 shadow-inner flex items-center justify-center border border-slate-800 relative">
+                            <button class="w-28 h-28 rounded-full transition-all duration-150 absolute"
+                                    :class="[
+                                        isProcessing ? 'bg-red-800/40 text-red-950 cursor-not-allowed border-red-900' : 'bg-red-600 active:bg-red-700 text-white cursor-pointer active:translate-y-1 hover:shadow-neon active:shadow-inner border-t border-red-400',
+                                        glassOpenB ? '' : 'pointer-events-none'
+                                    ]"
+                                    :disabled="isProcessing"
+                                    @click="triggerCrawl('social')">
+                                <span class="font-orbitron font-extrabold tracking-wider text-xs select-none block"
+                                      x-text="isProcessing ? 'LOCKED' : 'ACTIVATE'">ACTIVATE</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Status Text -->
+                    <div class="mt-4 flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full" :class="glassOpenB ? 'bg-green-500 animate-ping' : 'bg-slate-500'"></span>
+                        <span class="text-xs font-mono text-slate-400" x-text="glassOpenB ? 'READY TO CRAWL' : 'SHIELD SECURED'">SHIELD SECURED</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Central Control System Terminal -->
+            <div class="bg-black/80 border border-slate-800 rounded-lg p-6 max-w-4xl mx-auto shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-3 flex space-x-2">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse" :class="isProcessing ? 'bg-red-500' : 'bg-green-500'"></span>
+                    <span class="text-[9px] font-mono text-slate-500 uppercase" x-text="isProcessing ? 'CRAWLING ACTIVE' : 'SYSTEM IDLE'">SYSTEM IDLE</span>
+                </div>
+                <h4 class="font-orbitron text-xs text-cyan-400 font-bold uppercase tracking-wider mb-4 border-b border-slate-900 pb-2">COMMAND TERMINAL CONSOLE</h4>
+                <div id="terminal-logs" class="h-48 overflow-y-auto font-mono text-xs text-green-400/90 space-y-1 custom-scrollbar">
+                    <!-- Terminal messages go here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2: DASHBOARD ==================== -->
+        <div x-show="currentHash === '#dashboard'" x-cloak class="space-y-6">
+            <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
+                <h2 class="text-2xl font-orbitron font-bold text-cyan-400 tracking-wider mb-4">COMPLAINT ANALYTICS DASHBOARD</h2>
+                
+                <template x-if="!latestReport">
+                    <div class="h-64 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-lg">
+                        <p class="text-slate-400 text-sm">Chưa tìm thấy báo cáo phân tích nào trong Database.</p>
+                        <p class="text-slate-500 text-xs mt-1">Hãy cào dữ liệu để khởi tạo báo cáo đầu tiên.</p>
+                    </div>
+                </template>
+
+                <template x-if="latestReport">
+                    <div class="space-y-6">
+                        <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                            <div>
+                                <span class="text-xs text-slate-400">Lần cuối cập nhật:</span>
+                                <h3 class="text-sm font-mono text-cyan-300 mt-0.5" x-text="formatDate(latestReport.created_at)"></h3>
+                            </div>
+                            <span class="px-3 py-1 bg-cyan-950 text-cyan-400 rounded-full font-mono text-xs border border-cyan-800/40" x-text="latestReport.report_type.toUpperCase()"></span>
+                        </div>
+
+                        <!-- Main report display -->
+                        <div class="bg-slate-950/70 border border-slate-800/80 rounded-lg p-6 font-mono text-sm leading-relaxed overflow-x-auto text-slate-300 max-h-[500px] overflow-y-auto">
+                            <!-- Show Markdown report directly -->
+                            <div class="prose prose-invert prose-cyan max-w-none whitespace-pre-wrap" x-text="latestReport.content"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 3: HISTORY LOGS ==================== -->
+        <div x-show="currentHash === '#history'" x-cloak class="space-y-6">
+            <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
+                <h2 class="text-2xl font-orbitron font-bold text-cyan-400 tracking-wider mb-6">CRAWLING EXECUTION HISTORY</h2>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left font-mono text-sm border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-slate-400 bg-slate-950/50">
+                                <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">ID</th>
+                                <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Job Type</th>
+                                <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Status</th>
+                                <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Started At</th>
+                                <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Finished At</th>
+                                <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Triggered By</th>
+                                <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Error / Info</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="item in history" :key="item.id">
+                                <tr class="border-b border-slate-800/60 hover:bg-slate-900/10 transition-colors">
+                                    <td class="p-3 text-slate-400" x-text="item.id"></td>
+                                    <td class="p-3 font-semibold text-slate-300" x-text="item.job_type.toUpperCase()"></td>
+                                    <td class="p-3">
+                                        <span class="px-2 py-0.5 rounded text-xs border"
+                                              :class="{
+                                                  'bg-yellow-950/30 text-yellow-500 border-yellow-800/40 animate-pulse': item.status === 'running',
+                                                  'bg-green-950/30 text-green-400 border-green-800/40': item.status === 'done',
+                                                  'bg-red-950/30 text-red-400 border-red-800/40': item.status === 'error'
+                                              }"
+                                              x-text="item.status.toUpperCase()"></span>
+                                    </td>
+                                    <td class="p-3 text-slate-400" x-text="formatDate(item.started_at)"></td>
+                                    <td class="p-3 text-slate-400" x-text="item.finished_at ? formatDate(item.finished_at) : '—'"></td>
+                                    <td class="p-3 text-slate-400 text-xs" x-text="item.triggered_by"></td>
+                                     <td class="p-3 text-xs text-red-400/80 max-w-xs">
+                                         <div class="flex items-center justify-between space-x-2">
+                                             <span class="truncate block max-w-[200px]" :title="item.error_message" x-text="item.error_message || '—'"></span>
+                                             <button x-show="item.error_message" 
+                                                     @click="showErrorModal(item.error_message)" 
+                                                     class="text-cyan-400 hover:text-cyan-300 transition-colors p-1 bg-cyan-950/40 hover:bg-cyan-900/40 border border-cyan-800/30 rounded focus:outline-none flex items-center justify-center cursor-pointer shrink-0"
+                                                     style="box-shadow: none !important; transform: none !important;"
+                                                     title="Xem chi tiết lỗi">
+                                                 <!-- Info Icon -->
+                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                                 </svg>
+                                             </button>
+                                         </div>
+                                     </td>
+                                </tr>
+                            </template>
+                            <template x-if="history.length === 0">
+                                <tr>
+                                    <td colspan="7" class="p-8 text-center text-slate-500 italic">Chưa có lịch sử cào dữ liệu được lưu trữ.</td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-900 py-6 text-center text-xs text-slate-500 mt-12">
+        <p>&copy; 2026 Zalopay Complaint Analytics Agent — GreenNode AgentBase Claw-a-thon Contest</p>
+    </footer>
+
+    <!-- Error/Info Detail Modal -->
+    <div x-show="errorModalOpen" 
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+         x-transition
+         style="display: none;"
+         @keydown.escape.window="errorModalOpen = false">
+        
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full p-6 shadow-2xl relative flex flex-col space-y-4 max-h-[85vh]"
+             @click.away="errorModalOpen = false">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2 text-red-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                    <h3 class="font-orbitron font-bold tracking-wider text-sm">DETAILED ERROR LOG</h3>
+                </div>
+                <button @click="errorModalOpen = false" 
+                        class="text-slate-400 hover:text-slate-200 p-1 rounded-lg border border-transparent hover:border-slate-800 transition-all cursor-pointer"
+                        style="box-shadow: none !important; transform: none !important;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable Error Text) -->
+            <div class="bg-black/60 border border-slate-950 rounded-lg p-4 font-mono text-xs text-red-400 overflow-y-auto max-h-[50vh] select-text custom-scrollbar"><code class="whitespace-pre-wrap break-all" x-text="errorModalContent"></code></div>
+
+            <!-- Modal Actions -->
+            <div class="flex justify-end space-x-3 pt-3 border-t border-slate-800">
+                <button @click="copyErrorToClipboard()" 
+                        class="px-4 py-2 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-800/40 rounded text-cyan-400 font-orbitron text-xs tracking-wider hover:text-cyan-300 transition-all flex items-center space-x-2 cursor-pointer"
+                        style="box-shadow: none !important; transform: none !important;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                    <span x-text="copied ? 'COPIED!' : 'COPY LOG'">COPY LOG</span>
+                </button>
+                <button @click="errorModalOpen = false" 
+                        class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 font-orbitron text-xs tracking-wider hover:text-slate-200 transition-all cursor-pointer"
+                        style="box-shadow: none !important; transform: none !important;">
+                    CLOSE
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JS Logic Scripts -->
+    <script src="app.js?v=1.0.4"></script>
+</body>
+</html>

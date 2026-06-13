@@ -82,7 +82,7 @@ def index_issues(items: list[dict], job_name: str, run_date: str | None = None) 
 
 
 _ANSWER_SYSTEM = (
-    "You are a ZaloPay product analytics assistant answering a Product Owner's question.\n"
+    "You are a Zalopay product analytics assistant answering a Product Owner's question.\n"
     "Answer ONLY from the retrieved issues provided below — do not invent issues or numbers.\n"
     "Be concise and factual. Where useful, cite mention counts, sources, and dates.\n"
     "If none of the retrieved issues are relevant to the question, say so plainly."
