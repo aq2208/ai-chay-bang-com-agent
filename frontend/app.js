@@ -1,5 +1,5 @@
 /**
- * ZaloPay Complaint Analytics — App JS Controller (Alpine.js integration)
+ * Zalopay Complaint Analytics — App JS Controller (Alpine.js integration)
  */
 
 function appState() {
@@ -11,6 +11,9 @@ function appState() {
         glassOpenA: false,
         glassOpenB: false,
         isProcessing: false,
+        errorModalOpen: false,
+        errorModalContent: '',
+        copied: false,
 
         // --- Data States ---
         history: [],
@@ -154,6 +157,25 @@ function appState() {
                 return d.toLocaleString('vi-VN');
             } catch (e) {
                 return isoString;
+            }
+        },
+
+        // --- Show Detailed Error Modal ---
+        showErrorModal(errText) {
+            this.errorModalContent = errText;
+            this.errorModalOpen = true;
+            this.copied = false;
+        },
+
+        // --- Copy Error Log to Clipboard ---
+        async copyErrorToClipboard() {
+            try {
+                await navigator.clipboard.writeText(this.errorModalContent);
+                this.copied = true;
+                this.appendLog("[SYSTEM]: Đã sao chép log lỗi vào clipboard.");
+                setTimeout(() => { this.copied = false; }, 2000);
+            } catch (err) {
+                this.appendLog("[ERROR]: Không thể sao chép: " + err.message);
             }
         },
 
