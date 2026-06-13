@@ -1,4 +1,4 @@
-# ZaloPay Issue Analytics Agent
+# Zalopay Issue Analytics Agent
 
 An AI pipeline that fetches complaints from Jira and social media (Facebook, Threads), filters and classifies them, then generates structured issue reports for Product Owners — plus an agentic Q&A endpoint.
 
@@ -246,6 +246,17 @@ print(llm.chat(system='Reply with one word.', user='Say hello', max_tokens=5))
 
 Expected: `Hello` (or equivalent)
 
+### 6. Run Local FastAPI Server & Frontend UI
+
+To run the local FastAPI server (serving both REST APIs and the statically mounted Frontend Control Center UI) on port `8080`, execute:
+
+```bash
+DATABASE_URL=sqlite:///data.db .venv/bin/python3 -m uvicorn local_api:app --host 0.0.0.0 --port 8080
+```
+
+Once started, open your browser and navigate to:
+👉 **http://localhost:8080**
+
 ---
 
 ## Running Tests
@@ -293,7 +304,7 @@ Expected: 6 kept (negative), 2 dropped (positive).
 from processors.issue_extractor import extract_issue
 cases = [
     'Zalopay bị lỗi rồi! Không nạp tiền được bằng Visa suốt 2 tiếng!!',
-    'App ZaloPay crash liên tục khi mở lên',
+    'App Zalopay crash liên tục khi mở lên',
     'QR code scan failure at merchant terminal',
 ]
 for text in cases:
