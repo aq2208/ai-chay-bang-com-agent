@@ -117,20 +117,28 @@ async def disable_cache_middleware(request, call_next):
     return response
 
 # ── Concurrency Lock Worker ────────────────────────────────────────────────
-def _run_job(name: str, dry_run: bool, triggered_by: str = "manual") -> None:
+def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: int | None = None) -> None:
     """Worker executed in background thread. Updates database in-place."""
     runner = jira_job.run if name == "jira" else social_job.run
     
     db = SessionLocal()
-    crawl = CrawlHistory(
-        job_type=name,
-        status="running",
-        started_at=datetime.utcnow(),
-        triggered_by=triggered_by
-    )
-    db.add(crawl)
-    db.commit()
-    db.refresh(crawl)
+    crawl = None
+    if crawl_id is not None:
+        crawl = db.query(CrawlHistory).filter(CrawlHistory.id == crawl_id).first()
+        if crawl:
+            crawl.status = "running"
+            db.commit()
+            
+    if crawl is None:
+        crawl = CrawlHistory(
+            job_type=name,
+            status="running",
+            started_at=datetime.utcnow(),
+            triggered_by=triggered_by
+        )
+        db.add(crawl)
+        db.commit()
+        db.refresh(crawl)
     
     try:
         print(f"[crawler] Starting job '{name}' (dry_run={dry_run})...")
@@ -218,7 +226,7 @@ def trigger_github_workflow() -> bool:
         "User-Agent": "Zalopay-Complaint-Analytics-Agent"
     }
     data = {
-        "ref": "main"
+        "ref": os.getenv("GITHUB_BRANCH", "main")
     }
     try:
         print(f"[github] Triggering workflow dispatch: {url}")
@@ -269,6 +277,31 @@ def ingest_social(payload: list[dict]):
         db.close()
 
 
+@app.post("/api/crawl/fail", tags=["ops"])
+def crawl_fail(payload: dict):
+    job_type = payload.get("job_type", "social")
+    error_msg = payload.get("error", "GitHub Actions workflow run failed.")
+    db = SessionLocal()
+    try:
+        active = db.query(CrawlHistory).filter(
+            CrawlHistory.job_type == job_type,
+            CrawlHistory.status == "running"
+        ).order_by(CrawlHistory.id.desc()).first()
+        if active:
+            active.status = "error"
+            active.finished_at = datetime.utcnow()
+            active.error_message = error_msg
+            db.commit()
+            print(f"[crawler] Marked active job {active.id} as failed via callback.")
+            return {"status": "ok", "message": "Job status updated to error."}
+        return {"status": "ok", "message": "No active running job found to fail."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
 @app.post("/run/jira", tags=["jobs"])
 def run_jira(background_tasks: BackgroundTasks, dry_run: bool = True, triggered_by: str = "manual_left_btn"):
     db = SessionLocal()
@@ -289,6 +322,11 @@ def run_social(background_tasks: BackgroundTasks, dry_run: bool = True, triggere
     try:
         active = db.query(CrawlHistory).filter(CrawlHistory.status == "running").first()
         if active:
+            # If the request comes from the github workflow callback and matches our manually triggered running run, re-use it!
+            if triggered_by == "github_workflow" and active.job_type == "social" and active.triggered_by == "manual_right_btn":
+                background_tasks.add_task(_run_job, "social", dry_run, triggered_by, crawl_id=active.id)
+                return {"message": "Bắt đầu xử lý dữ liệu cào từ GitHub Actions.", "status": "started"}
+                
             raise HTTPException(status_code=400, detail="Hệ thống bận. Tiến trình cào dữ liệu khác đang hoạt động.")
         
         # Trigger GitHub workflow if GITHUB_PAT and GITHUB_REPO are set, dry_run is False,
@@ -296,6 +334,15 @@ def run_social(background_tasks: BackgroundTasks, dry_run: bool = True, triggere
         if not dry_run and triggered_by != "github_workflow" and os.getenv("GITHUB_PAT") and os.getenv("GITHUB_REPO"):
             triggered = trigger_github_workflow()
             if triggered:
+                # Create a run record immediately to lock the UI
+                crawl = CrawlHistory(
+                    job_type="social",
+                    status="running",
+                    started_at=datetime.utcnow(),
+                    triggered_by=triggered_by
+                )
+                db.add(crawl)
+                db.commit()
                 return {
                     "message": "Kích hoạt cào dữ liệu sống thành công qua GitHub Actions. Tiến trình xử lý sẽ tự động bắt đầu sau khi hoàn thành cào.",
                     "status": "github_triggered"

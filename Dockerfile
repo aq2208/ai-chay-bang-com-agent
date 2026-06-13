@@ -21,7 +21,6 @@ RUN apt-get update \
 
 # Install CPU-only torch first (smaller, no CUDA), then the rest.
 COPY requirements.txt .
-COPY .hf_cache /app/.hf_cache
 
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
@@ -29,6 +28,9 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 # Bake the ML models into the image (PhoBERT sentiment + MiniLM embeddings).
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')" \
     && python -c "from transformers import pipeline; pipeline('text-classification', model='wonrax/phobert-base-vietnamese-sentiment')"
+
+# Install any hotfixes or missing runtime packages to keep model bake layer cached.
+RUN pip install --no-cache-dir apscheduler
 
 # App code.
 COPY . .
