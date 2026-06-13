@@ -35,4 +35,4 @@ COPY . .
 RUN python knowledge_base/index.py
 
 EXPOSE 8080
-CMD ["python", "main.py"]
+CMD ["uvicorn", "local_api:app", "--host", "0.0.0.0", "--port", "8080"]

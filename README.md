@@ -112,6 +112,11 @@ clawathon-aicbc-agent/
 │   ├── grouper.py         ← Stage 7: embeddings → merge near-duplicates
 │   └── image_analyzer.py  ← Stage 3: Gemma vision on screenshots
 │
+├── crawlers/              ← offline Playwright scrapers (runs offline)
+│   ├── threads_crawler.py ← crawls Threads posts matching search keywords
+│   ├── threads_comment_crawler.py ← crawls comments of scraped Threads posts
+│   └── bronze.py          ← shared raw file IO utility
+│
 ├── connectors/            ← data fetchers: Jira, Facebook, Threads (built)
 │   ├── jira.py            ← Jira REST API client
 │   ├── facebook.py        ← Facebook Graph API keyword search
@@ -154,18 +159,42 @@ clawathon-aicbc-agent/
 cd clawathon-aicbc-agent
 ```
 
-### 2. Create a virtual environment
+### 2. Create and Activate a Virtual Environment (`venv`)
 
+It is **strongly recommended** to use a virtual environment (`venv`) to isolate dependencies and prevent version conflicts with your system's global Python or global Conda `(base)` environment (which could break other packages like `streamlit` or `matplotlib`).
+
+**Create the environment:**
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate      # Mac/Linux
-# .venv\Scripts\activate       # Windows
 ```
+
+**Activate the environment:**
+* **Mac/Linux:**
+  ```bash
+  source .venv/bin/activate
+  ```
+* **Windows (Command Prompt):**
+  ```cmd
+  .venv\Scripts\activate
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  .venv\Scripts\Activate.ps1
+  ```
+
+*(You should see `(.venv)` prepend your terminal command prompt once activated.)*
 
 ### 3. Install dependencies
 
+Ensure you are inside the activated virtual environment, then run:
 ```bash
 pip install -r requirements.txt
+```
+
+*(Optional) If you also want to run the crawler scripts:*
+```bash
+pip install -r requirements-crawler.txt
+python -m playwright install chromium
 ```
 
 > `torch` is large (~200MB CPU build). First install takes 2–5 minutes.
@@ -433,11 +462,16 @@ latest bronze file and normalize it.
 ```bash
 pip install -r requirements-crawler.txt
 python -m playwright install chromium
-python crawlers/threads_crawler.py        # → data/raw/threads_<ts>.jsonl
+
+# 1. Crawl threads posts matching keywords:
+python -m crawlers.threads_crawler          # → data/raw/threads_<ts>.jsonl
+
+# 2. Crawl comments/replies of those threads posts:
+python -m crawlers.threads_comment_crawler  # → data/raw/threads_comments_<ts>.jsonl
 ```
 
-- `crawlers/threads_crawler.py` — Playwright public keyword search on `threads.net/search`; filters by
-  post age, downloads images as base64, dedups by MD5. Uses `config.KEYWORDS` / `DAYS_BACK`.
+- `crawlers/threads_crawler.py` — Playwright public keyword search on `threads.net/search`; filters by post age, downloads images as base64, and dedups by MD5. Uses `config.KEYWORDS` / `DAYS_BACK`.
+- `crawlers/threads_comment_crawler.py` — Playwright deep post crawler that navigates to each thread's post URL to scroll and load comments/replies.
 - `crawlers/bronze.py` — shared JSONL IO (`save` / `load_latest`).
 - `connectors/threads.py` — reads the latest bronze file, maps `SocialPost` → `{id, source, text, images, timestamp}`.
 - Then run the pipeline against it: `{"action":"run","job":"social","dry_run":false}`.
