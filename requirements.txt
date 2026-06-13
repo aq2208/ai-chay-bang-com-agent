@@ -12,7 +12,6 @@ sentence-transformers
 transformers
 torch
 chromadb
-scipy
 
 
 # ── Data connectors ────────────────────────────────────────────────────────

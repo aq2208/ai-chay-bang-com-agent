@@ -248,11 +248,13 @@ Expected: `Hello` (or equivalent)
 
 ### 6. Run Local FastAPI Server & Frontend UI
 
-To run the local FastAPI server (serving both REST APIs and the statically mounted Frontend Control Center UI) on port `8080`, execute:
+To run the local FastAPI server (serving both the database-backed REST APIs, ingestion callbacks, and the statically mounted Frontend Control Center UI) on port `8080`, execute:
 
 ```bash
-DATABASE_URL=sqlite:///data.db .venv/bin/python3 -m uvicorn local_api:app --host 0.0.0.0 --port 8080
+.venv/bin/python3 main.py
 ```
+
+*(Note: For offline local development/testing without database dependencies, you can still run the in-memory fallback harness: `.venv/bin/python3 local_api.py`)*
 
 > [!TIP]
 > Nếu bạn gặp lỗi `address already in use` (cổng 8080 đang bị chiếm), chạy lệnh sau để giải phóng cổng:
