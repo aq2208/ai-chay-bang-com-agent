@@ -13,7 +13,7 @@ sys.path.insert(0, ".")
 
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from main import app
+from local_api import app
 
 client = TestClient(app)
 
@@ -54,8 +54,8 @@ def test_run_jira_trigger():
     print("=" * 50)
 
     # Patch the job runner so no real LLM calls are made
-    with patch("main._run_job", side_effect=lambda name, dry_run: None) as mock_run:
-        import main as m
+    with patch("local_api._run_job", side_effect=lambda name, dry_run: None) as mock_run:
+        import local_api as m
         with m._lock:
             m._status["jira"] = {"status": "idle"}  # reset
 
@@ -74,8 +74,8 @@ def test_run_social_trigger():
     print("TEST: POST /run/social — returns immediately, job runs in background")
     print("=" * 50)
 
-    with patch("main._run_job", side_effect=lambda name, dry_run: None):
-        import main as m
+    with patch("local_api._run_job", side_effect=lambda name, dry_run: None):
+        import local_api as m
         with m._lock:
             m._status["social"] = {"status": "idle"}
 
@@ -93,7 +93,7 @@ def test_duplicate_trigger_blocked():
     print("=" * 50)
     print("TEST: POST /run/jira twice — second blocked while first is running")
     print("=" * 50)
-    import main as m
+    import local_api as m
 
     # Simulate an in-progress job
     with m._lock:
@@ -115,7 +115,7 @@ def test_status_reflects_completed_job():
     print("=" * 50)
     print("TEST: GET /status — shows done after job completes")
     print("=" * 50)
-    import main as m
+    import local_api as m
 
     # Simulate a completed run
     with m._lock:

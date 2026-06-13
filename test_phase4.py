@@ -156,8 +156,8 @@ def test_image_analyzer_live():
 
     from processors.image_analyzer import analyze_image
 
-    # Public image of an error screen (Wikipedia screenshot — a safe public image)
-    test_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/280px-PNG_transparency_demonstration_1.png"
+    # Base64 red 1x1 PNG data URI to avoid remote download issues
+    test_url = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 
     try:
         result = analyze_image(test_url, samples=[])

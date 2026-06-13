@@ -62,14 +62,19 @@ bash ../.claude/skills/agentbase/scripts/check_credentials.sh llm   # expect OK
 **What it does:** Playwright opens Threads public search for each keyword in `config.KEYWORDS`, scrolls,
 extracts posts, downloads attached images as base64, dedups by content hash, writes a bronze `.jsonl`.
 
-```bash
-.venv/bin/python crawlers/threads_crawler.py
-```
+To crawl only the **last 1 day (24 hours)**, there are two ways:
 
-To change keywords/scope, edit `config.KEYWORDS` / `config.DAYS_BACK`, or call from Python:
-```bash
-.venv/bin/python -c "from crawlers.threads_crawler import crawl; crawl(keywords=['zalopay','zalo pay'], scroll_times=4, max_age_hours=48)"
-```
+1. **Option A: Edit `.env` or `config.py`**:
+   Set `DAYS_BACK=1` in your `.env` file, then run:
+   ```bash
+   PYTHONPATH=. .venv/bin/python crawlers/threads_crawler.py
+   ```
+
+2. **Option B: Call from Python directly**:
+   Set `max_age_hours=24` (24 hours = 1 day) in the Python call:
+   ```bash
+   .venv/bin/python -c "import sys; sys.path.insert(0, '.'); from crawlers.threads_crawler import crawl; crawl(max_age_hours=24)"
+   ```
 
 **Inspect:**
 ```bash
@@ -345,18 +350,44 @@ relevant" when appropriate.
 
 ---
 
-## Run the whole thing at once (for comparison)
+## Run the whole thing at once (via Project Entrypoint)
 
-After verifying steps individually, confirm the real end-to-end via the entrypoint (reads the latest
-bronze, runs all stages):
+When the project is deployed to AgentBase, it is invoked via the entrypoint in `main.py`. You can test this entrypoint contract locally in two ways:
+
+### 1. Test entrypoint handler directly via Python
+This directly executes the dispatch logic `handle_payload` inside `main.py` using the OpenAI provider (VNG MaaS Gemma 4):
 
 ```bash
+# Run the social pipeline on the recently crawled real Threads data:
 .venv/bin/python -c "import json; from main import handle_payload; print(json.dumps(handle_payload({'action':'run','job':'social','dry_run':False}), indent=2, default=str))"
+
+# Ask a Q&A question grounded in the indexed issues:
 .venv/bin/python -c "from main import handle_payload; print(handle_payload({'action':'query','question':'summarize the top issues'})['answer'])"
 ```
 
-`dry_run=False` makes the social job call `connectors.threads.fetch()` (your bronze). `dry_run=True` would
-use mock data instead.
+### 2. Test entrypoint via Local Web Server (matches AgentBase deployment)
+VNG AgentBase exposes a web server inside the agent container on port 8080, calling the POST `/invocations` endpoint. You can test this exact setup locally:
+
+1. **Start the AgentBase server**:
+   ```bash
+   .venv/bin/python main.py
+   ```
+   *Note: This starts the server on port 8080.*
+
+2. **Trigger the Social job via HTTP curl** (from a new terminal tab):
+   ```bash
+   curl -X POST http://localhost:8080/invocations \
+     -H "Content-Type: application/json" \
+     -d '{"action": "run", "job": "social", "dry_run": false}'
+   ```
+   *Note: This processes the Thread posts we crawled, outputs a report, and indexes the results into ChromaDB.*
+
+3. **Query the indexed issues via HTTP curl**:
+   ```bash
+   curl -X POST http://localhost:8080/invocations \
+     -H "Content-Type: application/json" \
+     -d '{"action": "query", "question": "What payment issues are users reporting?"}'
+   ```
 
 ---
 

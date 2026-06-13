@@ -49,7 +49,15 @@ def run(dry_run: bool = True) -> dict:
     else:
         from connectors.facebook import fetch as fetch_fb
         from connectors.threads import fetch as fetch_th
-        raw = fetch_fb() + fetch_th()
+        raw = []
+        try:
+            raw.extend(fetch_fb())
+        except Exception as e:
+            _log(f"WARNING — Facebook fetch failed: {e}")
+        try:
+            raw.extend(fetch_th())
+        except Exception as e:
+            _log(f"WARNING — Threads fetch failed: {e}")
     _log(f"Step 1/8 — {len(raw)} posts fetched")
 
     # ── Step 2: Preprocess ────────────────────────────────────────────────

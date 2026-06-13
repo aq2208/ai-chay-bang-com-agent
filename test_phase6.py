@@ -25,24 +25,39 @@ def test_connector_stubs_raise():
     print("=" * 50)
     print("TEST: connector stubs — raise without credentials")
     print("=" * 50)
-    import os
-    # Temporarily clear any credentials so stubs raise
-    saved = {k: os.environ.pop(k, "") for k in ("JIRA_URL", "FB_PAGE_ID", "THREADS_ACCESS_TOKEN")}
+    import config
+    saved_config = {
+        "JIRA_URL": config.JIRA_URL,
+        "JIRA_EMAIL": config.JIRA_EMAIL,
+        "JIRA_API_TOKEN": config.JIRA_API_TOKEN,
+        "FB_ACCESS_TOKEN": config.FB_ACCESS_TOKEN,
+        "FB_PAGE_IDS": config.FB_PAGE_IDS,
+    }
+    config.JIRA_URL = ""
+    config.JIRA_EMAIL = ""
+    config.JIRA_API_TOKEN = ""
+    config.FB_ACCESS_TOKEN = ""
+    config.FB_PAGE_IDS = []
+
     try:
         from connectors.jira import fetch as jira_fetch
         from connectors.facebook import fetch as fb_fetch
         from connectors.threads import fetch as th_fetch
 
-        for name, fn in [("jira", jira_fetch), ("facebook", fb_fetch), ("threads", th_fetch)]:
-            try:
-                fn()
-                assert False, f"{name} connector should have raised"
-            except (RuntimeError, NotImplementedError):
-                print(f"  {name}: raises correctly ✅")
+        from unittest.mock import patch
+        with patch("connectors.threads.bronze.load_latest", return_value=None):
+            for name, fn in [("jira", jira_fetch), ("facebook", fb_fetch), ("threads", th_fetch)]:
+                try:
+                    fn()
+                    assert False, f"{name} connector should have raised"
+                except (RuntimeError, NotImplementedError):
+                    print(f"  {name}: raises correctly ✅")
     finally:
-        for k, v in saved.items():
-            if v:
-                os.environ[k] = v
+        config.JIRA_URL = saved_config["JIRA_URL"]
+        config.JIRA_EMAIL = saved_config["JIRA_EMAIL"]
+        config.JIRA_API_TOKEN = saved_config["JIRA_API_TOKEN"]
+        config.FB_ACCESS_TOKEN = saved_config["FB_ACCESS_TOKEN"]
+        config.FB_PAGE_IDS = saved_config["FB_PAGE_IDS"]
     print()
 
 

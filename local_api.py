@@ -87,6 +87,18 @@ def status():
         return dict(_status)
 
 
+@app.post("/invocations", tags=["agent"])
+def invocations(payload: dict):
+    """
+    AgentBase invocations mock endpoint.
+    Accepts payloads like:
+      {"action": "run", "job": "social", "dry_run": false}
+      {"action": "query", "question": "..."}
+    """
+    from main import handle_payload
+    return handle_payload(payload)
+
+
 @app.post("/run/jira", tags=["jobs"])
 def run_jira(background_tasks: BackgroundTasks, dry_run: bool = True):
     """

@@ -15,7 +15,7 @@ load_dotenv()
 #   LLM_API_KEY=<MaaS key from /agentbase-llm>
 #   MODEL_FAST=google/gemma-4-31b-it
 #   MODEL_SMART=google/gemma-4-31b-it
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 LLM_API_KEY  = os.getenv("LLM_API_KEY", "")
 # OpenAI-compatible base URL. Empty → default OpenAI servers. Set to the MaaS endpoint
 # (or any OpenAI-compatible gateway) to route the openai provider elsewhere.
@@ -83,7 +83,7 @@ KEYWORDS = [
 SENTIMENT_THRESHOLD      = 0.75   # below this → ask LLM as tiebreaker
 GROUPING_THRESHOLD       = 0.82   # cosine similarity to merge issues
 KB_SIMILARITY_THRESHOLD  = 0.48   # cosine similarity floor to accept a KB match
-DAYS_BACK                = 2      # how many days back to fetch data
+DAYS_BACK                = 1      # how many days back to fetch data
 SCROLL_TIMES             = 4      # how many times to scroll down to load search results
 
 
