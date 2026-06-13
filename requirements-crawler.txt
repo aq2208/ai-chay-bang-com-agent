@@ -9,3 +9,6 @@ aiohttp
 python-dateutil
 nest-asyncio        # only needed when running inside a notebook (Colab)
 pydantic            # SocialPost schema (also a core dep)
+python-dotenv
+requests
+

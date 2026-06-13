@@ -23,7 +23,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements-crawler.txt
-          pip install requests
           python -m playwright install chromium --with-deps
 
       - name: Run Playwright Threads Crawler
