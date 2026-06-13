@@ -1,4 +1,4 @@
-# AgentBase Custom Agent image for the ZaloPay Issue Analytics Agent.
+# AgentBase Custom Agent image for the Zalopay Issue Analytics Agent.
 # Build for the platform (amd64) on Apple Silicon:
 #   docker build --platform linux/amd64 -t vcr.vngcloud.vn/<repo>/<name>:<tag> .
 #
@@ -21,6 +21,7 @@ RUN apt-get update \
 
 # Install CPU-only torch first (smaller, no CUDA), then the rest.
 COPY requirements.txt .
+
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 

@@ -21,7 +21,7 @@ def check_report(report: str, items: list[dict]) -> dict:
     """
     problems: list[str] = []
 
-    if not report.startswith("# ZaloPay Complaint Report"):
+    if not report.startswith("# Zalopay Complaint Report"):
         problems.append("Missing report title")
 
     if items:

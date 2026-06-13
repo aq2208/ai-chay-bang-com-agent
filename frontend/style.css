@@ -1,0 +1,84 @@
+/* Custom styles and animations for the Futuristic Control Room */
+
+/* Cyber Grid Background */
+body {
+    background-color: #020617;
+    background-image: 
+        linear-gradient(to right, rgba(6, 182, 212, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(6, 182, 212, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
+/* Custom Scrollbar for Terminal Log */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(6, 182, 212, 0.3);
+    border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(6, 182, 212, 0.5);
+}
+
+/* Screen Shake Animation (for World Destruction Trigger) */
+@keyframes shake {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    10% { transform: translate(-3px, -2px) rotate(-0.5deg); }
+    20% { transform: translate(-1px, 2px) rotate(0.5deg); }
+    30% { transform: translate(2px, 1px) rotate(0deg); }
+    40% { transform: translate(1px, -1px) rotate(0.5deg); }
+    50% { transform: translate(-2px, 2px) rotate(-0.5deg); }
+    60% { transform: translate(-3px, 1px) rotate(0deg); }
+    75% { transform: translate(2px, 2px) rotate(0.5deg); }
+    90% { transform: translate(-1px, -2px) rotate(-0.5deg); }
+}
+
+.shake-effect {
+    animation: shake 0.4s infinite;
+}
+
+/* Red blinking alert overlay keyframes */
+@keyframes pulse-red {
+    0%, 100% { background-color: rgba(127, 29, 29, 0); }
+    50% { background-color: rgba(127, 29, 29, 0.3); }
+}
+
+.animate-pulse-red {
+    animation: pulse-red 1.5s infinite;
+}
+
+/* Glassmorphism details */
+.backdrop-blur-xs {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* 3D Button Depth Styling */
+button {
+    box-shadow: 
+        0 8px 0 #991b1b, /* Dark red underside shadow */
+        0 15px 20px rgba(0, 0, 0, 0.5);
+    transform: translateY(-4px);
+}
+
+button:active {
+    box-shadow: 
+        0 2px 0 #991b1b,
+        0 5px 10px rgba(0, 0, 0, 0.5);
+    transform: translateY(2px);
+}
+
+button:disabled {
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+/* Hide elements with x-cloak attribute on initial load until Alpine.js initializes */
+[x-cloak] {
+    display: none !important;
+}
+

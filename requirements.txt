@@ -13,10 +13,17 @@ transformers
 torch
 chromadb
 
+
 # ── Data connectors ────────────────────────────────────────────────────────
 jira
 requests
 httpx              # used by llm_client.vision() to download image URLs
+
+# ── Database & Web Server ──────────────────────────────────────────────────
+fastapi
+uvicorn
+SQLAlchemy
+psycopg2-binary
 
 # ── Misc ────────────────────────────────────────────────────────────────────
 pydantic

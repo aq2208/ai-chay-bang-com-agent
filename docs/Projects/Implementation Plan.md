@@ -174,13 +174,13 @@ MOCK_SOCIAL = [
      "images": ["https://example.com/screenshot_e5001.jpg"],
      "timestamp": "2026-06-10T08:30:00"},
     {"id": "FB-2002", "source": "facebook",
-     "text": "Great app, been using ZaloPay for years!",   # positive — filtered out
+     "text": "Great app, been using Zalopay for years!",   # positive — filtered out
      "images": [], "timestamp": "2026-06-10T08:45:00"},
     {"id": "FB-2003", "source": "facebook",
      "text": "Quét QR không được tại Circle K. Đứng xếp hàng mà thanh toán không qua.",
      "images": [], "timestamp": "2026-06-10T07:15:00"},
     {"id": "TH-3001", "source": "threads",
-     "text": "ZaloPay không gửi OTP về điện thoại. Đăng nhập không được luôn.",
+     "text": "Zalopay không gửi OTP về điện thoại. Đăng nhập không được luôn.",
      "images": [], "timestamp": "2026-06-10T07:00:00"},
     {"id": "TH-3002", "source": "threads",
      "text": "App bị crash khi mở lên. Điện thoại Samsung Galaxy S21.",
@@ -279,7 +279,7 @@ def is_negative(text: str) -> bool:
 ```python
 from processors.sentiment import is_negative
 print(is_negative("Không nạp tiền được bằng Visa suốt 2 tiếng!"))  # True
-print(is_negative("Great app, love using ZaloPay!"))               # False
+print(is_negative("Great app, love using Zalopay!"))               # False
 ```
 
 ---

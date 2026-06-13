@@ -1,0 +1,43 @@
+name: Daily Crawl and Sync
+
+on:
+  schedule:
+    # Runs at 8:00 AM VN time (1:00 AM UTC) daily
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    # Allows manual trigger from GitHub UI / API
+
+jobs:
+  crawl-and-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-crawler.txt
+          python -m playwright install chromium --with-deps
+
+      - name: Run Playwright Threads Crawler
+        run: |
+          python -m crawlers.threads_crawler
+
+      - name: Sync Crawled Data to Agent Runtime
+        env:
+          AGENT_ENDPOINT_URL: ${{ secrets.AGENT_ENDPOINT_URL }}
+        run: |
+          python -m crawlers.sync_to_agent
+
+      - name: Report failure to Agent
+        if: failure()
+        env:
+          AGENT_ENDPOINT_URL: ${{ secrets.AGENT_ENDPOINT_URL }}
+        run: |
+          curl -X POST "$AGENT_ENDPOINT_URL/api/crawl/fail" -H "Content-Type: application/json" -d '{"job_type": "social", "error": "GitHub Actions workflow run failed."}' || true

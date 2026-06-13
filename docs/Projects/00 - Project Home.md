@@ -1,4 +1,4 @@
-# 🏦 ZaloPay Issue Analytics Agent — Project Home
+# 🏦 Zalopay Issue Analytics Agent — Project Home
 
 #project #home
 
@@ -11,7 +11,7 @@
 
 ## 1. What we're building
 
-An **AI Voice-of-Customer (VoC) analytics agent** for ZaloPay (FinTech / e-wallet). It ingests user
+An **AI Voice-of-Customer (VoC) analytics agent** for Zalopay (FinTech / e-wallet). It ingests user
 complaints from **Jira + Facebook + Threads**, filters and enriches them, and produces **structured
 issue reports with suggested solutions** for Product Owners — plus an **agentic Q&A** surface where a PO
 can ask free-form questions and get answers grounded in the indexed issues.

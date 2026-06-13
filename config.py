@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+load_dotenv(override=True)
 
 # ── LLM Provider ──────────────────────────────────────────────────────────
 # Supported: anthropic | google | openai
@@ -89,7 +89,7 @@ SCROLL_TIMES             = 4      # how many times to scroll down to load search
 
 # ── Server & Scheduler ────────────────────────────────────────────────────
 HOST                     = os.getenv("HOST", "0.0.0.0")
-PORT                     = int(os.getenv("PORT", "8000"))
+PORT                     = int(os.getenv("PORT", "8080"))
 JIRA_SCHEDULE_HOUR       = int(os.getenv("JIRA_SCHEDULE_HOUR", "8"))
 JIRA_SCHEDULE_MINUTE     = int(os.getenv("JIRA_SCHEDULE_MINUTE", "0"))
 SOCIAL_SCHEDULE_HOUR     = int(os.getenv("SOCIAL_SCHEDULE_HOUR", "8"))

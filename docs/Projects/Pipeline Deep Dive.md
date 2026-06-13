@@ -166,7 +166,7 @@ def mentions_product(text: str) -> bool:
 
 **What it is:** A pre-trained ML model (not LLM) that classifies text as POSITIVE, NEGATIVE, or NEUTRAL by detecting emotional tone.
 
-**Why:** You only want negative posts — complaints, problems, frustrations. Positive posts ("I love ZaloPay!") and neutral posts ("Does ZaloPay support ATM?") should be dropped. Using an ML model instead of an LLM for this is:
+**Why:** You only want negative posts — complaints, problems, frustrations. Positive posts ("I love Zalopay!") and neutral posts ("Does Zalopay support ATM?") should be dropped. Using an ML model instead of an LLM for this is:
 - 100x faster (milliseconds vs seconds)
 - Free (runs locally, no API cost)
 - Good enough for a binary filter
@@ -248,7 +248,7 @@ def analyze_post_image(image_url: str, sample_images: list[dict]) -> dict:
     })
     content.append({
         "type": "text",
-        "text": "This is a screenshot posted by a user reporting a ZaloPay problem.\n\nCompare it with these known issue samples:"
+        "text": "This is a screenshot posted by a user reporting a Zalopay problem.\n\nCompare it with these known issue samples:"
     })
 
     # 2. Add each sample reference image

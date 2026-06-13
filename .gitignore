@@ -13,3 +13,4 @@ data/test/
 .hf_cache/
 .DS_Store
 .agentbase/
+*.db

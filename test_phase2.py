@@ -50,7 +50,7 @@ def test_issue_extractor():
     cases = [
         ("Không nạp tiền được bằng Visa suốt 2 tiếng, lỗi E5001", ""),
         ("Quét QR không được tại Circle K", ""),
-        ("ZaloPay không gửi OTP về điện thoại", ""),
+        ("Zalopay không gửi OTP về điện thoại", ""),
         ("App crash liên tục khi mở lên", "Screenshot shows app crash on launch screen"),
     ]
 

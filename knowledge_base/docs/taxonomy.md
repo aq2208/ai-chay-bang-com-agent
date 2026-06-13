@@ -12,7 +12,7 @@ from the knowledge_base (solution) collection.
 ## Payment / Top-up
 **Domain:** Payment
 **Segment:** Top-up
-Definition: Adding money into the ZaloPay wallet from a card or bank fails or errors.
+Definition: Adding money into the Zalopay wallet from a card or bank fails or errors.
 Examples:
 - "Không nạp tiền được bằng thẻ Visa, báo lỗi E5001"
 - "Nạp tiền vào ví mãi không thành công"
@@ -23,7 +23,7 @@ Examples:
 ## Payment / Transfer
 **Domain:** Payment
 **Segment:** Transfer
-Definition: Peer-to-peer money transfers between ZaloPay users or to bank accounts fail.
+Definition: Peer-to-peer money transfers between Zalopay users or to bank accounts fail.
 Examples:
 - "Chuyển tiền cho bạn mà báo lỗi người nhận không tồn tại"
 - "Chuyển khoản bị treo, tiền trừ rồi mà người nhận không nhận được"
@@ -89,7 +89,7 @@ Examples:
 ## Account / Login
 **Domain:** Account
 **Segment:** Login
-Definition: Cannot sign in to the ZaloPay account.
+Definition: Cannot sign in to the Zalopay account.
 Examples:
 - "Đăng nhập không được"
 - "App báo sai mật khẩu dù nhập đúng"
@@ -166,11 +166,11 @@ Examples:
 ## Merchant / POS
 **Domain:** Merchant
 **Segment:** POS
-Definition: Merchant point-of-sale terminal issues accepting ZaloPay.
+Definition: Merchant point-of-sale terminal issues accepting Zalopay.
 Examples:
-- "Máy POS của cửa hàng không nhận thanh toán ZaloPay"
+- "Máy POS của cửa hàng không nhận thanh toán Zalopay"
 - "Quẹt ở máy bán hàng báo lỗi kết nối"
-- "POS terminal won't accept ZaloPay"
+- "POS terminal won't accept Zalopay"
 
 ---
 

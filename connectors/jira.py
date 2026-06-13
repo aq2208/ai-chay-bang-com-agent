@@ -13,17 +13,15 @@ Config (config.py / .env):
 
 from __future__ import annotations
 
-from config import (
-    JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT, JIRA_JQL, DAYS_BACK,
-)
-
+import os
+import config
 
 def _build_jql() -> str:
-    if JIRA_JQL:
-        return JIRA_JQL
-    clauses = [f"created >= -{DAYS_BACK}d", "issuetype in (Bug, Incident)"]
-    if JIRA_PROJECT:
-        clauses.insert(0, f'project = "{JIRA_PROJECT}"')
+    if config.JIRA_JQL:
+        return config.JIRA_JQL
+    clauses = [f"created >= -{config.DAYS_BACK}d", "issuetype in (Bug, Incident)"]
+    if config.JIRA_PROJECT:
+        clauses.insert(0, f'project = "{config.JIRA_PROJECT}"')
     return " AND ".join(clauses) + " ORDER BY created DESC"
 
 
@@ -51,8 +49,12 @@ def _description_text(description) -> str:
 
 
 def fetch() -> list[dict]:
-    """Fetch recent ZaloPay complaint tickets from Jira."""
-    if not JIRA_URL or not JIRA_EMAIL or not JIRA_API_TOKEN:
+    """Fetch recent Zalopay complaint tickets from Jira."""
+    url = os.getenv("JIRA_URL") or config.JIRA_URL
+    email = os.getenv("JIRA_EMAIL") or config.JIRA_EMAIL
+    token = os.getenv("JIRA_API_TOKEN") or config.JIRA_API_TOKEN
+
+    if not url or not email or not token or url == "https://your-company.atlassian.net" or token == "...":
         raise RuntimeError(
             "Jira credentials not configured. "
             "Set JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN in .env — or use dry_run=True."
@@ -60,7 +62,7 @@ def fetch() -> list[dict]:
 
     from jira import JIRA
 
-    client = JIRA(server=JIRA_URL, basic_auth=(JIRA_EMAIL, JIRA_API_TOKEN))
+    client = JIRA(server=url, basic_auth=(email, token))
     issues = client.search_issues(_build_jql(), maxResults=200)
 
     items: list[dict] = []
@@ -77,3 +79,4 @@ def fetch() -> list[dict]:
             "timestamp": getattr(f, "created", ""),
         })
     return items
+
