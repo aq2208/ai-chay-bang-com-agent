@@ -37,7 +37,17 @@ def fetch() -> list[dict]:
     """
     Load recent Threads posts from the database, falling back to local files if empty.
     """
-    from local_api import SessionLocal, RawPost
+    import os
+    import config
+    
+    token = os.getenv("THREADS_ACCESS_TOKEN") or config.THREADS_TOKEN
+    if not token or token == "...":
+        raise RuntimeError(
+            "Threads credentials not configured. "
+            "Set THREADS_ACCESS_TOKEN in .env — or use dry_run=True."
+        )
+
+    from main import SessionLocal, RawPost
     
     db = SessionLocal()
     try:

@@ -326,23 +326,32 @@ def run_social(background_tasks: BackgroundTasks, dry_run: bool = True, triggere
                 
             raise HTTPException(status_code=400, detail="Hệ thống bận. Tiến trình cào dữ liệu khác đang hoạt động.")
         
-        if not dry_run and triggered_by != "github_workflow" and os.getenv("GITHUB_PAT") and os.getenv("GITHUB_REPO"):
-            triggered = trigger_github_workflow()
-            if triggered:
-                crawl = CrawlHistory(
-                    job_type="social",
-                    status="running",
-                    started_at=datetime.utcnow(),
-                    triggered_by=triggered_by
-                )
-                db.add(crawl)
-                db.commit()
-                return {
-                    "message": "Kích hoạt cào dữ liệu sống thành công qua GitHub Actions. Tiến trình xử lý sẽ tự động bắt đầu sau khi hoàn thành cào.",
-                    "status": "github_triggered"
-                }
+        if not dry_run and triggered_by != "github_workflow":
+            if os.getenv("GITHUB_PAT") and os.getenv("GITHUB_REPO"):
+                triggered = trigger_github_workflow()
+                if triggered:
+                    crawl = CrawlHistory(
+                        job_type="social",
+                        status="running",
+                        started_at=datetime.utcnow(),
+                        triggered_by=triggered_by
+                    )
+                    db.add(crawl)
+                    db.commit()
+                    return {
+                        "message": "Kích hoạt cào dữ liệu sống thành công qua GitHub Actions. Tiến trình xử lý sẽ tự động bắt đầu sau khi hoàn thành cào.",
+                        "status": "github_triggered"
+                    }
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Kích hoạt GitHub Actions thất bại. Không thể thực hiện cào dữ liệu trên agent runtime."
+                    )
             else:
-                print("[run_social] Failed to trigger GitHub Action, falling back to local run on current DB data.")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Thiếu cấu hình GITHUB_PAT hoặc GITHUB_REPO để kích hoạt cào dữ liệu qua GitHub Actions."
+                )
         
         background_tasks.add_task(_run_job, "social", dry_run, triggered_by)
         return {"message": "Kích hoạt cào Social thành công.", "status": "started"}
