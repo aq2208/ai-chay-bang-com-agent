@@ -19,12 +19,19 @@ function appState() {
         history: [],
         latestReport: null,
         pollingInterval: null,
+        runningJob: null,
 
         // --- Initialize App ---
         initApp() {
             this.appendLog("[SYSTEM]: Khởi tạo trung tâm chỉ huy thành công.");
             this.appendLog("[SYSTEM]: Thiết lập định tuyến qua URL Hash: " + this.currentHash);
             
+            // Watch currentHash changes to log them
+            this.$watch('currentHash', value => {
+                this.appendLog("[SYSTEM DEBUG]: Route transition to " + value);
+                console.log("[SYSTEM DEBUG]: Route transition to " + value);
+            });
+
             // Initial fetch of logs and status
             this.fetchStatus();
             this.fetchHistoryAndReports();
@@ -48,11 +55,12 @@ function appState() {
                 
                 const activeJobRunning = isJiraRunning || isSocialRunning;
                 
-                // If it transition from idle to processing, apply visual screen shake warning
+                // If it transitions from idle to processing, apply visual screen shake warning
                 if (activeJobRunning && !this.isProcessing) {
                     this.isProcessing = true;
+                    this.runningJob = isJiraRunning ? 'jira' : 'social';
                     this.triggerScreenShake();
-                    this.appendLog(`[SYSTEM LOCK]: Tiến trình cào dữ liệu đang được thực thi ngầm! Khóa nút bấm điều khiển.`);
+                    this.appendLog(`[SYSTEM LOCK]: Tiến trình cào dữ liệu [${this.runningJob.toUpperCase()}] đang được thực thi ngầm! Khóa nút bấm điều khiển.`);
                     
                     // Keep glass open if it's already running
                     if (isJiraRunning) this.glassOpenA = true;
@@ -61,7 +69,16 @@ function appState() {
                 // If it transitions from processing to idle, release the lock and refresh data
                 else if (!activeJobRunning && this.isProcessing) {
                     this.isProcessing = false;
-                    this.appendLog("[SYSTEM UNLOCK]: Tiến trình hoàn tất. Giải phóng khóa hệ thống.");
+                    const finishedJob = this.runningJob || (status.jira.status !== 'idle' ? 'jira' : 'social');
+                    const jobDetails = status[finishedJob];
+                    
+                    if (jobDetails && jobDetails.status === 'error') {
+                        this.appendLog(`[SYSTEM ERROR]: Tiến trình cào [${finishedJob.toUpperCase()}] THẤT BẠI. Chi tiết lỗi: ${jobDetails.error || 'Lỗi không xác định'}`);
+                    } else {
+                        this.appendLog(`[SYSTEM UNLOCK]: Tiến trình cào [${finishedJob.toUpperCase()}] hoàn tất thành công. Giải phóng khóa hệ thống.`);
+                    }
+                    
+                    this.runningJob = null;
                     this.fetchHistoryAndReports();
                     // Close glass covers
                     this.glassOpenA = false;
@@ -98,6 +115,7 @@ function appState() {
 
             this.appendLog(`[PROTOCOL]: Chuẩn bị kích hoạt hủy diệt thế giới qua cổng ${jobType.toUpperCase()}...`);
             this.isProcessing = true;
+            this.runningJob = jobType;
             this.triggerScreenShake();
 
             // Dramatic matrix countdown simulation

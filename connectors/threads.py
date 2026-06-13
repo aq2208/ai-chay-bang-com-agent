@@ -35,15 +35,36 @@ def _to_item(rec: dict) -> dict:
 
 def fetch() -> list[dict]:
     """
-    Load the most recent bronze Threads crawl and normalize it.
-
-    Raises if no bronze file exists yet — run the crawler first
-    (`python crawlers/threads_crawler.py`) or use dry_run=True for mock data.
+    Load recent Threads posts from the database, falling back to local files if empty.
     """
-    records = bronze.load_latest(SOURCE)
-    if not records:
-        raise RuntimeError(
-            "No Threads bronze data found in data/raw/. "
-            "Run the crawler first: `python crawlers/threads_crawler.py` — or use dry_run=True."
-        )
-    return [_to_item(r) for r in records]
+    from local_api import SessionLocal, RawPost
+    
+    db = SessionLocal()
+    try:
+        posts = db.query(RawPost).filter(RawPost.platform == "Threads").all()
+        if not posts:
+            print("[connector.threads] No raw posts found in database. Falling back to offline bronze files...")
+            records = bronze.load_latest(SOURCE)
+            if not records:
+                raise RuntimeError(
+                    "No Threads data found in database or local data/raw/ files. "
+                    "Please run the crawler first or use dry_run=True."
+                )
+            return [_to_item(r) for r in records]
+        
+        records = []
+        for p in posts:
+            records.append({
+                "post_hash_id": p.post_hash_id,
+                "platform": p.platform,
+                "matched_keyword": p.matched_keyword,
+                "author": p.author,
+                "content": p.content,
+                "posted_at": p.posted_at,
+                "crawled_at": p.crawled_at,
+                "post_url": p.post_url,
+                "images_base64": p.images_base64 or []
+            })
+        return [_to_item(r) for r in records]
+    finally:
+        db.close()

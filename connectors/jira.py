@@ -51,7 +51,7 @@ def _description_text(description) -> str:
 
 
 def fetch() -> list[dict]:
-    """Fetch recent ZaloPay complaint tickets from Jira."""
+    """Fetch recent Zalopay complaint tickets from Jira."""
     if not JIRA_URL or not JIRA_EMAIL or not JIRA_API_TOKEN:
         raise RuntimeError(
             "Jira credentials not configured. "

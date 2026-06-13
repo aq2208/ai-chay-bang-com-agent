@@ -1,5 +1,5 @@
 """
-ZaloPay Complaint Analytics API — FastAPI server + Database History & Lock.
+Zalopay Complaint Analytics API — FastAPI server + Database History & Lock.
 
 Endpoints:
   GET  /health          — liveness check
@@ -24,9 +24,10 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from apscheduler.schedulers.background import BackgroundScheduler
+import httpx
 
 import config
 from jobs import jira_job, social_job
@@ -36,10 +37,20 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-if DATABASE_URL.startswith("sqlite"):
+try:
+    if DATABASE_URL.startswith("sqlite"):
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    else:
+        engine = create_engine(DATABASE_URL)
+    # Test connection
+    with engine.connect() as conn:
+        pass
+    print(f"[database] Successfully connected to database: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")
+except Exception as e:
+    print(f"[database] WARNING: Failed to connect to {DATABASE_URL}. Error: {e}")
+    print("[database] Falling back to local SQLite: sqlite:///data.db")
+    DATABASE_URL = "sqlite:///data.db"
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-else:
-    engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -67,9 +78,22 @@ class AIReport(Base):
     
     crawl = relationship("CrawlHistory", back_populates="reports")
 
+class RawPost(Base):
+    __tablename__ = "raw_posts"
+    post_hash_id = Column(String(100), primary_key=True, index=True)
+    platform = Column(String(50), nullable=False)
+    matched_keyword = Column(String(200), nullable=True)
+    author = Column(String(200), nullable=True)
+    content = Column(Text, nullable=True)
+    posted_at = Column(String(50), nullable=True)
+    crawled_at = Column(String(50), nullable=True)
+    post_url = Column(String(500), nullable=True)
+    images_base64 = Column(JSON, nullable=True)
+
+
 # ── FastAPI App Setup ──────────────────────────────────────────────────────
 app = FastAPI(
-    title="ZaloPay Complaint Analytics",
+    title="Zalopay Complaint Analytics",
     description="FastAPI harness for the Jira and Social Media pipelines with DB storage.",
     version="1.0.0",
 )
@@ -81,6 +105,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Prevent Caching Middleware (for reliable local frontend updates) ──────
+@app.middleware("http")
+async def disable_cache_middleware(request, call_next):
+    response = await call_next(request)
+    # Set headers to prevent caching for frontend assets
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # ── Concurrency Lock Worker ────────────────────────────────────────────────
 def _run_job(name: str, dry_run: bool, triggered_by: str = "manual") -> None:
@@ -170,6 +204,71 @@ def status():
         db.close()
 
 
+def trigger_github_workflow() -> bool:
+    pat = os.getenv("GITHUB_PAT")
+    repo = os.getenv("GITHUB_REPO")
+    workflow = os.getenv("GITHUB_WORKFLOW", "daily_crawl.yml")
+    if not pat or not repo:
+        return False
+    
+    url = f"https://api.github.com/repos/{repo}/actions/workflows/{workflow}/dispatches"
+    headers = {
+        "Authorization": f"token {pat}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "Zalopay-Complaint-Analytics-Agent"
+    }
+    data = {
+        "ref": "main"
+    }
+    try:
+        print(f"[github] Triggering workflow dispatch: {url}")
+        with httpx.Client() as client:
+            r = client.post(url, json=data, headers=headers, timeout=10)
+        if r.status_code == 204:
+            print("[github] Workflow dispatch triggered successfully.")
+            return True
+        else:
+            print(f"[github] Failed to trigger workflow: {r.status_code} - {r.text}")
+            return False
+    except Exception as e:
+        print(f"[github] Error triggering workflow: {e}")
+        return False
+
+
+@app.post("/api/ingest/social", tags=["ingest"])
+def ingest_social(payload: list[dict]):
+    db = SessionLocal()
+    try:
+        new_count = 0
+        for item in payload:
+            post_id = item.get("id") or item.get("post_hash_id")
+            if not post_id:
+                continue
+            # Check if exists
+            exists = db.query(RawPost).filter(RawPost.post_hash_id == post_id).first()
+            if not exists:
+                raw_post = RawPost(
+                    post_hash_id=post_id,
+                    platform=item.get("platform", "Threads"),
+                    matched_keyword=item.get("matched_keyword"),
+                    author=item.get("author"),
+                    content=item.get("text") or item.get("content"),
+                    posted_at=item.get("timestamp") or item.get("posted_at"),
+                    crawled_at=item.get("crawled_at") or datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                    post_url=item.get("url") or item.get("post_url"),
+                    images_base64=item.get("images") or item.get("images_base64", [])
+                )
+                db.add(raw_post)
+                new_count += 1
+        db.commit()
+        return {"message": f"Successfully ingested {len(payload)} posts. New: {new_count}.", "status": "ok"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {e}")
+    finally:
+        db.close()
+
+
 @app.post("/run/jira", tags=["jobs"])
 def run_jira(background_tasks: BackgroundTasks, dry_run: bool = True, triggered_by: str = "manual_left_btn"):
     db = SessionLocal()
@@ -191,6 +290,18 @@ def run_social(background_tasks: BackgroundTasks, dry_run: bool = True, triggere
         active = db.query(CrawlHistory).filter(CrawlHistory.status == "running").first()
         if active:
             raise HTTPException(status_code=400, detail="Hệ thống bận. Tiến trình cào dữ liệu khác đang hoạt động.")
+        
+        # Trigger GitHub workflow if GITHUB_PAT and GITHUB_REPO are set, dry_run is False,
+        # and this trigger did not come from the github workflow itself.
+        if not dry_run and triggered_by != "github_workflow" and os.getenv("GITHUB_PAT") and os.getenv("GITHUB_REPO"):
+            triggered = trigger_github_workflow()
+            if triggered:
+                return {
+                    "message": "Kích hoạt cào dữ liệu sống thành công qua GitHub Actions. Tiến trình xử lý sẽ tự động bắt đầu sau khi hoàn thành cào.",
+                    "status": "github_triggered"
+                }
+            else:
+                print("[run_social] Failed to trigger GitHub Action, falling back to local run on current DB data.")
         
         background_tasks.add_task(_run_job, "social", dry_run, triggered_by)
         return {"message": "Kích hoạt cào Social thành công.", "status": "started"}
@@ -293,6 +404,21 @@ def startup():
     # Automatically initialize SQLite or PostgreSQL schemas
     Base.metadata.create_all(bind=engine)
     print("[database] Database tables verified/created successfully.")
+    
+    # Recover orphaned running jobs on startup
+    db = SessionLocal()
+    try:
+        orphaned = db.query(CrawlHistory).filter(CrawlHistory.status == "running").all()
+        for crawl in orphaned:
+            print(f"[database] Recovering orphaned job run ID {crawl.id} (status: running -> error)")
+            crawl.status = "error"
+            crawl.finished_at = datetime.utcnow()
+            crawl.error_message = "Tiến trình bị gián đoạn do máy chủ khởi động lại."
+        db.commit()
+    except Exception as e:
+        print(f"[database] Failed to recover orphaned jobs: {e}")
+    finally:
+        db.close()
     
     # Start the local scheduler (fallback)
     app.state.scheduler = _start_scheduler()

@@ -28,7 +28,7 @@
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=1.0.4">
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen overflow-x-hidden relative"
       x-data="appState()"
@@ -72,7 +72,7 @@
     <main class="max-w-7xl mx-auto px-6 py-8 relative z-10">
         
         <!-- ==================== TAB 1: CRAWLER COMMAND ==================== -->
-        <div x-show="currentHash === '#crawler'" x-transition class="space-y-8">
+        <div x-show="currentHash === '#crawler'" x-cloak class="space-y-8">
             <div class="text-center max-w-2xl mx-auto mb-10">
                 <p class="text-red-500 uppercase tracking-widest font-orbitron text-xs font-bold">MUTUAL EXCLUSION CENTRAL COMMAND</p>
                 <h2 class="text-3xl font-orbitron font-extrabold mt-2 tracking-wide text-slate-100">CRAWLER DESTRUCTION PROTOCOL</h2>
@@ -97,10 +97,10 @@
                     <!-- 3D Red Button & Glass Cover Component -->
                     <div class="my-8 relative w-48 h-48 flex items-center justify-center">
                         <!-- Glass Protective Cover -->
-                        <div class="absolute inset-0 border border-slate-700/60 rounded-full bg-slate-950/20 backdrop-blur-xs flex items-center justify-center transition-all duration-500 z-20 cursor-pointer"
+                        <div class="group/shield absolute inset-0 border border-slate-700/60 rounded-full bg-slate-950/20 backdrop-blur-xs flex items-center justify-center transition-all duration-500 z-20 cursor-pointer"
                              :class="glassOpenA ? 'opacity-0 scale-125 pointer-events-none' : 'opacity-100 scale-100'"
                              @click="glassOpenA = true; appendLog('[SYSTEM]: Lồng bảo vệ JIRA đã được mở. Sẵn sàng kích hoạt.')">
-                            <span class="text-cyan-500/90 font-orbitron font-black text-[10px] tracking-widest uppercase animate-pulse select-none text-center px-4">CLICK TO OPEN SHIELD</span>
+                            <span class="text-cyan-500/90 group-hover/shield:text-cyan-400 group-hover/shield:opacity-100 group-hover/shield:animate-none font-orbitron font-black text-[10px] tracking-widest uppercase animate-pulse select-none text-center px-4">CLICK TO OPEN SHIELD</span>
                         </div>
 
                         <!-- 3D Red Button Base -->
@@ -138,10 +138,10 @@
                     <!-- 3D Red Button & Glass Cover Component -->
                     <div class="my-8 relative w-48 h-48 flex items-center justify-center">
                         <!-- Glass Protective Cover -->
-                        <div class="absolute inset-0 border border-slate-700/60 rounded-full bg-slate-950/20 backdrop-blur-xs flex items-center justify-center transition-all duration-500 z-20 cursor-pointer"
+                        <div class="group/shield absolute inset-0 border border-slate-700/60 rounded-full bg-slate-950/20 backdrop-blur-xs flex items-center justify-center transition-all duration-500 z-20 cursor-pointer"
                              :class="glassOpenB ? 'opacity-0 scale-125 pointer-events-none' : 'opacity-100 scale-100'"
                              @click="glassOpenB = true; appendLog('[SYSTEM]: Lồng bảo vệ SOCIAL đã được mở. Sẵn sàng kích hoạt.')">
-                            <span class="text-red-500/90 font-orbitron font-black text-[10px] tracking-widest uppercase animate-pulse select-none text-center px-4">CLICK TO OPEN SHIELD</span>
+                            <span class="text-red-500/90 group-hover/shield:text-red-400 group-hover/shield:opacity-100 group-hover/shield:animate-none font-orbitron font-black text-[10px] tracking-widest uppercase animate-pulse select-none text-center px-4">CLICK TO OPEN SHIELD</span>
                         </div>
 
                         <!-- 3D Red Button Base -->
@@ -182,7 +182,7 @@
         </div>
 
         <!-- ==================== TAB 2: DASHBOARD ==================== -->
-        <div x-show="currentHash === '#dashboard'" x-transition class="space-y-6">
+        <div x-show="currentHash === '#dashboard'" x-cloak class="space-y-6">
             <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
                 <h2 class="text-2xl font-orbitron font-bold text-cyan-400 tracking-wider mb-4">COMPLAINT ANALYTICS DASHBOARD</h2>
                 
@@ -214,7 +214,7 @@
         </div>
 
         <!-- ==================== TAB 3: HISTORY LOGS ==================== -->
-        <div x-show="currentHash === '#history'" x-transition class="space-y-6">
+        <div x-show="currentHash === '#history'" x-cloak class="space-y-6">
             <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
                 <h2 class="text-2xl font-orbitron font-bold text-cyan-400 tracking-wider mb-6">CRAWLING EXECUTION HISTORY</h2>
                 
@@ -334,6 +334,6 @@
     </div>
 
     <!-- JS Logic Scripts -->
-    <script src="app.js?v=1.0.2"></script>
+    <script src="app.js?v=1.0.4"></script>
 </body>
 </html>

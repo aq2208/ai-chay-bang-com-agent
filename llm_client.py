@@ -76,13 +76,21 @@ class _LLMClient:
         return resp.content[0].text.strip()
 
     def _google(self, system: str, user: str, max_tokens: int, model: str) -> str:
+        import os
         import re
         import time
         from google import genai
         from google.genai import types
         from google.genai.errors import ClientError
 
-        client = genai.Client(api_key=LLM_API_KEY)
+        api_key = LLM_API_KEY or os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "LLM_API_KEY is not set in your .env file! Please configure a Google Gemini API key "
+                "(e.g., LLM_API_KEY=AIzaSy...) from Google AI Studio to run the pipeline."
+            )
+
+        client = genai.Client(api_key=api_key)
 
         for attempt in range(4):
             try:
@@ -183,6 +191,7 @@ class _LLMClient:
     def _vision_google(
         self, system: str, prompt: str, images: list[dict], max_tokens: int, model: str
     ) -> str:
+        import os
         import base64 as b64mod
         import re
         import time
@@ -191,7 +200,14 @@ class _LLMClient:
         from google.genai import types
         from google.genai.errors import ClientError
 
-        client = genai.Client(api_key=LLM_API_KEY)
+        api_key = LLM_API_KEY or os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "LLM_API_KEY is not set in your .env file! Please configure a Google Gemini API key "
+                "(e.g., LLM_API_KEY=AIzaSy...) from Google AI Studio to run the pipeline."
+            )
+
+        client = genai.Client(api_key=api_key)
 
         parts: list = []
         for img in images:

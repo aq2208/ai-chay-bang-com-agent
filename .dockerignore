@@ -21,7 +21,7 @@ chroma_db/
 # Dev artifacts not needed in the runtime
 output/
 *.ipynb
-.hf_cache/
+
 
 # Bronze crawl data is delivered separately (not baked into the image)
 data/raw/

@@ -1,6 +1,6 @@
 """
 Facebook Graph API connector.
-Fetches posts and comments from one or more ZaloPay Facebook pages.
+Fetches posts and comments from one or more Zalopay Facebook pages.
 """
 
 from __future__ import annotations

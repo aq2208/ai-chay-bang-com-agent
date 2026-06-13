@@ -1,5 +1,5 @@
 """
-AgentBase Custom Agent entrypoint — ZaloPay Issue Analytics Agent.
+AgentBase Custom Agent entrypoint — Zalopay Issue Analytics Agent.
 
 Deployed on VNG AgentBase as a request/response Custom Agent. The platform invokes
 `handler` via POST /invocations (port 8080) and calls `health` for liveness.
@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 _VALID_JOBS = ("jira", "social", "all")
 

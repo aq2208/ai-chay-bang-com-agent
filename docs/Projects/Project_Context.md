@@ -1,4 +1,4 @@
-# Project Context — ZaloPay Issue Analytics Agent
+# Project Context — Zalopay Issue Analytics Agent
 
 #project
 
@@ -16,7 +16,7 @@
 ## Overview
 
 An enterprise-style **AI Data Analytics Agent** for Product Owners and dev teams in FinTech / e-wallet
-(ZaloPay). It automates collecting, filtering, and analyzing user feedback from multiple sources, and
+(Zalopay). It automates collecting, filtering, and analyzing user feedback from multiple sources, and
 condenses it into high-quality issue reports with concrete suggested solutions.
 
 ### Core goals

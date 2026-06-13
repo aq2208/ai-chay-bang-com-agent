@@ -76,3 +76,9 @@ button:disabled {
     box-shadow: none !important;
     transform: none !important;
 }
+
+/* Hide elements with x-cloak attribute on initial load until Alpine.js initializes */
+[x-cloak] {
+    display: none !important;
+}
+

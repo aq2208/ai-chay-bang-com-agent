@@ -254,6 +254,12 @@ To run the local FastAPI server (serving both REST APIs and the statically mount
 DATABASE_URL=sqlite:///data.db .venv/bin/python3 -m uvicorn local_api:app --host 0.0.0.0 --port 8080
 ```
 
+> [!TIP]
+> Nếu bạn gặp lỗi `address already in use` (cổng 8080 đang bị chiếm), chạy lệnh sau để giải phóng cổng:
+> ```bash
+> [ -n "$(lsof -t -i:8080)" ] && kill -9 $(lsof -t -i:8080) || true
+> ```
+
 Once started, open your browser and navigate to:
 👉 **http://localhost:8080**
 

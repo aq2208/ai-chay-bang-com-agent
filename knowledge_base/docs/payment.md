@@ -10,13 +10,13 @@
 
 **Symptoms:** User attempts to top-up via Visa or Mastercard. Transaction fails after card details are entered. Error codes E5001 or E5002 displayed.
 
-**Cause:** 3D Secure (3DS) authentication timeout. The ZaloPay gateway waits up to 10 seconds for the bank's 3DS redirect, but some issuing banks take 12–20 seconds, causing a timeout before the OTP confirmation page loads.
+**Cause:** 3D Secure (3DS) authentication timeout. The Zalopay gateway waits up to 10 seconds for the bank's 3DS redirect, but some issuing banks take 12–20 seconds, causing a timeout before the OTP confirmation page loads.
 
 ## Suggested Approach
 
 1. Check payment gateway logs for the specific transaction ID — confirm if timeout occurred at 3DS handshake or post-authentication.
 2. Increase 3DS timeout window from 10s to 30s in the payment gateway config (`gateway.yml → 3ds_timeout_ms: 30000`).
-3. If E5002 (card declined by issuer): user should contact their bank to whitelist ZaloPay as a merchant. Some Vietnamese banks block international gateway transactions by default.
+3. If E5002 (card declined by issuer): user should contact their bank to whitelist Zalopay as a merchant. Some Vietnamese banks block international gateway transactions by default.
 4. Temporary workaround for users: top-up via bank transfer instead of card.
 5. Escalate to payment gateway team if affecting >5% of top-up transactions.
 
@@ -24,9 +24,9 @@
 
 ## Duplicate Charge / Double Deduction
 
-**Symptoms:** User is charged twice for one transaction. One charge shows in ZaloPay history, both show in bank statement.
+**Symptoms:** User is charged twice for one transaction. One charge shows in Zalopay history, both show in bank statement.
 
-**Cause:** Network timeout during payment confirmation step. User's bank processed the payment but the confirmation callback to ZaloPay was lost. User retried, triggering a second charge.
+**Cause:** Network timeout during payment confirmation step. User's bank processed the payment but the confirmation callback to Zalopay was lost. User retried, triggering a second charge.
 
 ## Suggested Approach
 
@@ -44,14 +44,14 @@
 
 ## Suggested Approach
 
-- **E4001:** Verify recipient's phone number is registered with ZaloPay. Check if account is suspended.
+- **E4001:** Verify recipient's phone number is registered with Zalopay. Check if account is suspended.
 - **E4002:** Daily transfer limit is 100M VND for unverified accounts, 500M VND for verified. User must complete eKYC to raise the limit. Direct to: `app → Profile → Verify Identity`.
 
 ---
 
 ## Withdrawal Failure
 
-**Symptoms:** User cannot withdraw ZaloPay balance to linked bank account.
+**Symptoms:** User cannot withdraw Zalopay balance to linked bank account.
 
 **Cause:** Bank account linking expired (token rotated by bank), or bank maintenance window.
 

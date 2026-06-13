@@ -511,7 +511,7 @@ bash .claude/skills/agentbase/scripts/runtime.sh update <runtime-id> \
 
 ## Next Steps — Real Hackathon Agent
 
-See **[[Projects/00 - Project Home]]** for the ZaloPay Issue Analytics Agent — the real project this
+See **[[Projects/00 - Project Home]]** for the Zalopay Issue Analytics Agent — the real project this
 onboarding feeds into.
 
 How the real project uses the platform (as built):

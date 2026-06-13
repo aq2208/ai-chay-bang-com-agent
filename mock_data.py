@@ -39,7 +39,7 @@ MOCK_JIRA: list[dict] = [
         "source": "jira",
         "text": (
             "App crashes immediately on launch. "
-            "Samsung Galaxy S21, Android 13, ZaloPay version 4.2.1."
+            "Samsung Galaxy S21, Android 13, Zalopay version 4.2.1."
         ),
         "images": [],
         "timestamp": "2026-06-10T11:00:00",
@@ -49,7 +49,7 @@ MOCK_JIRA: list[dict] = [
         "source": "jira",
         "text": (
             "User charged twice for a single Grab top-up transaction. "
-            "Both charges reflected in bank statement but only one in ZaloPay history."
+            "Both charges reflected in bank statement but only one in Zalopay history."
         ),
         "images": [],
         "timestamp": "2026-06-10T11:30:00",
@@ -75,14 +75,14 @@ MOCK_SOCIAL: list[dict] = [
     {
         "id": "FB-2003",
         "source": "facebook",
-        "text": "App ZaloPay crash liên tục khi mở lên. Xóa cài lại vẫn bị. Dùng iPhone 14.",
+        "text": "App Zalopay crash liên tục khi mở lên. Xóa cài lại vẫn bị. Dùng iPhone 14.",
         "images": [],
         "timestamp": "2026-06-10T06:50:00",
     },
     {
         "id": "TH-3001",
         "source": "threads",
-        "text": "ZaloPay không gửi OTP về điện thoại. Đăng nhập không được luôn, ai gặp chưa?",
+        "text": "Zalopay không gửi OTP về điện thoại. Đăng nhập không được luôn, ai gặp chưa?",
         "images": [],
         "timestamp": "2026-06-10T07:00:00",
     },
@@ -96,7 +96,7 @@ MOCK_SOCIAL: list[dict] = [
     {
         "id": "TH-3003",
         "source": "threads",
-        "text": "Bị trừ tiền 2 lần khi thanh toán đơn Shopee qua ZaloPay. Tiền mất mà đơn không xác nhận.",
+        "text": "Bị trừ tiền 2 lần khi thanh toán đơn Shopee qua Zalopay. Tiền mất mà đơn không xác nhận.",
         "images": [],
         "timestamp": "2026-06-10T09:15:00",
     },
@@ -104,14 +104,14 @@ MOCK_SOCIAL: list[dict] = [
     {
         "id": "FB-2004",
         "source": "facebook",
-        "text": "ZaloPay tiện lợi lắm, dùng mấy năm rồi không có vấn đề gì!",
+        "text": "Zalopay tiện lợi lắm, dùng mấy năm rồi không có vấn đề gì!",
         "images": [],
         "timestamp": "2026-06-10T08:45:00",
     },
     {
         "id": "TH-3004",
         "source": "threads",
-        "text": "Great app, been using ZaloPay for years. Super fast transfers!",
+        "text": "Great app, been using Zalopay for years. Super fast transfers!",
         "images": [],
         "timestamp": "2026-06-10T09:30:00",
     },

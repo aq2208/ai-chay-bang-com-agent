@@ -15,7 +15,7 @@
 Sentiment analysis classifies text by **emotional tone** — most commonly into **positive**, **negative**, or **neutral**. Some models also output fine-grained emotions (anger, joy, fear) or intensity scores.
 
 The task sounds simple but is surprisingly hard:
-- "ZaloPay is *interesting*" — positive or sarcastic?
+- "Zalopay is *interesting*" — positive or sarcastic?
 - "Không lỗi nào cả" — genuinely no bugs (positive) or sarcastic praise (negative)?
 - "Ứng dụng hơi lag nhưng ok" — mixed: mildly negative + acceptable
 
@@ -108,15 +108,15 @@ Vietnamese is tonal — the same syllable with different diacritics means entire
 - "ma" (ghost), "má" (cheek), "mà" (but), "mả" (tomb), "mã" (horse), "mạ" (rice seedling)
 
 Users on mobile often **omit tone marks** (Telex without diacritics):
-- "Zalopay bi loi" = "ZaloPay bị lỗi" (ZaloPay has an error) — but without marks, models may not recognize "loi" as "lỗi"
+- "Zalopay bi loi" = "Zalopay bị lỗi" (Zalopay has an error) — but without marks, models may not recognize "loi" as "lỗi"
 
 Use models trained on both normalized and non-normalized Vietnamese, or run tone restoration preprocessing.
 
 **2. Sarcasm is structurally positive but semantically negative**
 
 ```
-"ZaloPay hay thật đấy"
-Literal: "ZaloPay is truly great"
+"Zalopay hay thật đấy"
+Literal: "Zalopay is truly great"
 Actual: dripping sarcasm said after an error
 ```
 
@@ -265,7 +265,7 @@ Failing open (keep the post on error) aligns with the recall-over-precision pref
 
 ### Fine-Tuning on Domain Data
 
-If off-the-shelf PhoBERT performs poorly on ZaloPay-specific Vietnamese, fine-tune on ~500+ labeled posts:
+If off-the-shelf PhoBERT performs poorly on Zalopay-specific Vietnamese, fine-tune on ~500+ labeled posts:
 
 ```python
 from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer
@@ -283,11 +283,11 @@ training_args = TrainingArguments(
 )
 ```
 
-500 labeled examples typically improves accuracy 5–15% on domain-specific text. Worth doing post-hackathon if the model struggles with ZaloPay-specific vocabulary.
+500 labeled examples typically improves accuracy 5–15% on domain-specific text. Worth doing post-hackathon if the model struggles with Zalopay-specific vocabulary.
 
 ---
 
-## In Your Pipeline (ZaloPay Project)
+## In Your Pipeline (Zalopay Project)
 
 ### Stage 3: Social Media Filter
 
@@ -298,7 +298,7 @@ Stage 0 — FETCH posts from Facebook / Threads
     ↓
 Stage 1 — PREPROCESS  (clean_text, deduplicate)
     ↓
-Stage 2 — KEYWORD FILTER  (keep posts mentioning ZaloPay keywords)
+Stage 2 — KEYWORD FILTER  (keep posts mentioning Zalopay keywords)
     ↓
 Stage 3 — SENTIMENT ANALYSIS  ← you are here
     keep only is_negative == True

@@ -3,7 +3,7 @@
 > Learning AI Agents from scratch for the hackathon. Updated as I learn.
 
 > [!important] Project canonical entry point
-> **→ [[Projects/00 - Project Home]]** is the single source of truth for the ZaloPay Issue
+> **→ [[Projects/00 - Project Home]]** is the single source of truth for the Zalopay Issue
 > Analytics Agent — final design, tech stack, build status, and links to every project doc.
 
 ---

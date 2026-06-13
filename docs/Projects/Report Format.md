@@ -86,7 +86,7 @@ output/
 |----|--------|----------------|-----------|-----------|--------|
 | JIRA-1234 | Jira | Visa card top-up failing... | 2026-06-09 18:00 | N/A | Payment |
 | FB-2045 | Facebook | Không nạp tiền được bằng Visa... | 2026-06-10 07:23 | Negative | Payment |
-| TH-3012 | Threads | ZaloPay QR expired ngay lập tức... | 2026-06-10 06:10 | Negative | QR Code |
+| TH-3012 | Threads | Zalopay QR expired ngay lập tức... | 2026-06-10 06:10 | Negative | QR Code |
 ````
 
 ---

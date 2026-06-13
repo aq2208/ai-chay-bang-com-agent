@@ -7,9 +7,9 @@
 
 ## POS Terminal Not Receiving Payments
 
-**Symptoms:** Merchant's ZaloPay POS device shows transactions as pending, or customer payments do not appear on the POS screen in real time.
+**Symptoms:** Merchant's Zalopay POS device shows transactions as pending, or customer payments do not appear on the POS screen in real time.
 
-**Cause A:** POS device has lost its WebSocket connection to ZaloPay's notification server.
+**Cause A:** POS device has lost its WebSocket connection to Zalopay's notification server.
 **Cause B:** Merchant's network has a restrictive firewall blocking WebSocket (port 443 with upgrade headers).
 **Cause C:** POS software is outdated — older versions have a known WebSocket reconnect bug.
 
@@ -28,7 +28,7 @@
 **Symptoms:** Merchant's daily settlement has not arrived in their bank account by the expected time (typically T+1 by 10:00 AM).
 
 **Cause A:** Bank processing delay — especially common after public holidays.
-**Cause B:** Merchant's bank account details are outdated in ZaloPay system.
+**Cause B:** Merchant's bank account details are outdated in Zalopay system.
 **Cause C:** Settlement amount is below the merchant's configured minimum threshold.
 
 ## Suggested Approach
@@ -48,7 +48,7 @@
 ## Suggested Approach
 
 1. Accepted business registration documents: Giấy phép kinh doanh (Business License) — must be valid, not expired, matching the applicant's name.
-2. Common rejection reasons: blurry scan, expired license, name mismatch between document and registered ZaloPay email.
+2. Common rejection reasons: blurry scan, expired license, name mismatch between document and registered Zalopay email.
 3. For individual sellers (Hộ kinh doanh cá thể): CCCD of the business owner is sufficient — no formal business license required for tier 1 merchant.
 4. Resubmit via: `merchant.zalopay.vn → Onboarding → Upload Documents`.
 5. If rejected 3+ times with correct documents: escalate to KYB compliance team for manual review.

@@ -272,7 +272,7 @@ Use:      pass TEXT to LLM (never the vector)
 
 Embeddings are always a bridge — they let you find the right text using math, then the LLM does what it's good at: reading and reasoning over that text.
 
-In your ZaloPay project, you use **Role 1** (RAG for KB lookups at Stage 7) and a variant of **Role 3** (semantic grouping to cluster similar complaints at Stage 8).
+In your Zalopay project, you use **Role 1** (RAG for KB lookups at Stage 7) and a variant of **Role 3** (semantic grouping to cluster similar complaints at Stage 8).
 
 ---
 
@@ -515,7 +515,7 @@ cluster by cosine similarity ≥ 0.85
 
 ---
 
-## In Your Pipeline (ZaloPay Project)
+## In Your Pipeline (Zalopay Project)
 
 ### The Most Important Design Decision: Embed the Extracted Issue, Not the Raw Text
 
