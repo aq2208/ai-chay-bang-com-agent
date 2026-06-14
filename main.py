@@ -156,6 +156,8 @@ def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: i
         
         crawl.status = "done"
         crawl.finished_at = datetime.utcnow()
+        if result and result.get("issues") == 0:
+            crawl.error_message = "no post at current"
         
         if report_content:
             ai_report = AIReport(

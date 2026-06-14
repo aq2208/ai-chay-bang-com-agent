@@ -2,8 +2,8 @@ name: Daily Crawl and Sync
 
 on:
   schedule:
-    # Runs at 8:00 AM VN time (1:00 AM UTC) daily
-    - cron: '0 1 * * *'
+    # Runs daily at a less congested minute around 1:00 AM UTC (8:37 AM VN time) to minimize GitHub Actions scheduling delay
+    - cron: '37 1 * * *'
   workflow_dispatch:
     # Allows manual trigger from GitHub UI / API
 

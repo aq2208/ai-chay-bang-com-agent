@@ -256,10 +256,21 @@ def crawl(
     print(f"📊 {len(records)} unique post(s) across {len(keywords)} keyword(s)")
     with_images = sum(1 for r in records if r.get("images_base64"))
     print(f"   with images: {with_images}")
-    if save_bronze and records:
+    if save_bronze:
         path = bronze.save(records, source="threads")
         print(f"💾 bronze saved: {path}")
     print("=" * 56)
+
+    # Set step output for GitHub Actions if environment variable is present
+    import os
+    github_output = os.getenv("GITHUB_OUTPUT")
+    if github_output:
+        try:
+            with open(github_output, "a", encoding="utf-8") as f:
+                f.write(f"has_posts={'true' if records else 'false'}\n")
+        except Exception as e:
+            print(f"[crawler] Failed to write to GITHUB_OUTPUT: {e}")
+
     return records
 
 
