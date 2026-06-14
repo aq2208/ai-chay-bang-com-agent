@@ -12,6 +12,9 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HOME=/app/.hf_cache \
     TOKENIZERS_PARALLELISM=false
 
+ARG HF_TOKEN
+ENV HF_TOKEN=$HF_TOKEN
+
 WORKDIR /app
 
 # Build tools for any deps without prebuilt wheels (e.g. hnswlib used by chromadb).
@@ -24,6 +27,9 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
+
+# Copy the pre-downloaded Hugging Face cache from local host
+COPY .hf_cache /app/.hf_cache
 
 # Bake the ML models into the image (PhoBERT sentiment + MiniLM embeddings).
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')" \
