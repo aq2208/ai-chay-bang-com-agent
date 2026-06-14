@@ -35,25 +35,26 @@ def run():
                 records.append(json.loads(line))
                 
     print(f"[sync] Loaded {len(records)} raw posts.")
-    if not records:
-        print("[sync] Warning: Crawl file is empty. Skipping upload.")
-        return
-        
+
     # 3. Read endpoint config
     agent_url = os.getenv("AGENT_ENDPOINT_URL", "http://localhost:8080").rstrip("/")
     print(f"[sync] Target Agent Base URL: {agent_url}")
-    
-    # 4. Ingest raw posts
-    ingest_url = f"{agent_url}/api/ingest/social"
-    try:
-        print(f"[sync] Sending POST {ingest_url}...")
-        r = requests.post(ingest_url, json=records, timeout=60)
-        r.raise_for_status()
-        print(f"[sync] Ingest response: {r.json()}")
-    except Exception as e:
-        print(f"[sync] Ingestion failed: {e}")
-        sys.exit(1)
-        
+
+    # 4. Ingest raw posts (only if we have crawled records)
+    if records:
+        ingest_url = f"{agent_url}/api/ingest/social"
+        try:
+            print(f"[sync] Sending POST {ingest_url}...")
+            r = requests.post(ingest_url, json=records, timeout=60)
+            r.raise_for_status()
+            print(f"[sync] Ingest response: {r.json()}")
+        except Exception as e:
+            print(f"[sync] Ingestion failed: {e}")
+            sys.exit(1)
+    else:
+        print("[sync] Crawl file is empty. Skipping ingestion, but proceeding to trigger pipeline to complete job.")
+        print("no post at current")
+
     # 5. Trigger social job pipeline
     trigger_url = f"{agent_url}/run/social?dry_run=false&triggered_by=github_workflow"
     try:
@@ -64,8 +65,9 @@ def run():
     except Exception as e:
         print(f"[sync] Failed to trigger social job pipeline: {e}")
         sys.exit(1)
-        
+
     print("[sync] Completed successfully.")
+
 
 if __name__ == "__main__":
     run()
