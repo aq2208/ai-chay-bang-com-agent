@@ -150,6 +150,7 @@ function appState() {
 
         // --- Xử lý Cập nhật Trạng thái Nhận được từ WS ---
         handleStatusUpdate(status) {
+            this.fetchHistoryAndReports();
             const isJiraRunning = status.jira && status.jira.status === 'running';
             const isSocialRunning = status.social && status.social.status === 'running';
             const activeJobRunning = isJiraRunning || isSocialRunning;
