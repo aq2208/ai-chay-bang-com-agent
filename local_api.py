@@ -27,7 +27,8 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timezone
 
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect
+import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 
 import config
@@ -48,6 +49,91 @@ _status: dict[str, dict] = {
 _lock = threading.Lock()
 
 
+# ── WebSockets Connection Manager ──────────────────────────────────────────
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"[ws] Client connected to local WS. Total active: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            print(f"[ws] Client disconnected from local WS. Total active: {len(self.active_connections)}")
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+manager = ConnectionManager()
+local_loop = None
+
+def broadcast_status_sync():
+    """Helper đồng bộ gửi trạng thái từ in-memory dict _status tới các WS client"""
+    global local_loop
+    try:
+        with _lock:
+            status_data = {
+                "jira": {
+                    "status": _status["jira"].get("status", "idle"),
+                    "started_at": _status["jira"].get("started_at"),
+                    "finished_at": _status["jira"].get("finished_at"),
+                    "error": _status["jira"].get("error")
+                },
+                "social": {
+                    "status": _status["social"].get("status", "idle"),
+                    "started_at": _status["social"].get("started_at"),
+                    "finished_at": _status["social"].get("finished_at"),
+                    "error": _status["social"].get("error")
+                }
+            }
+        
+        if local_loop and local_loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                manager.broadcast({"type": "status", "data": status_data}),
+                local_loop
+            )
+    except Exception as e:
+        print(f"[ws error] Lỗi khi broadcast trạng thái local: {e}")
+
+@app.websocket("/ws/status")
+async def websocket_status_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        with _lock:
+            initial_status = {
+                "jira": {
+                    "status": _status["jira"].get("status", "idle"),
+                    "started_at": _status["jira"].get("started_at"),
+                    "finished_at": _status["jira"].get("finished_at"),
+                    "error": _status["jira"].get("error")
+                },
+                "social": {
+                    "status": _status["social"].get("status", "idle"),
+                    "started_at": _status["social"].get("started_at"),
+                    "finished_at": _status["social"].get("finished_at"),
+                    "error": _status["social"].get("error")
+                }
+            }
+        await websocket.send_json({"type": "status", "data": initial_status})
+    except Exception as e:
+        print(f"[ws] Lỗi gửi trạng thái ban đầu (local): {e}")
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
 def _run_job(name: str, dry_run: bool) -> None:
     """Worker executed in background thread. Updates _status in-place."""
     runner = jira_job.run if name == "jira" else social_job.run
@@ -57,6 +143,7 @@ def _run_job(name: str, dry_run: bool) -> None:
             "started_at": datetime.now(timezone.utc).isoformat(),
             "dry_run":    dry_run,
         }
+    broadcast_status_sync()
     try:
         result = runner(dry_run=dry_run)
         with _lock:
@@ -65,6 +152,7 @@ def _run_job(name: str, dry_run: bool) -> None:
                 "finished_at": datetime.now(timezone.utc).isoformat(),
                 "result":      result,
             })
+        broadcast_status_sync()
     except Exception as exc:
         with _lock:
             _status[name].update({
@@ -72,6 +160,7 @@ def _run_job(name: str, dry_run: bool) -> None:
                 "finished_at": datetime.now(timezone.utc).isoformat(),
                 "error":       str(exc),
             })
+        broadcast_status_sync()
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
@@ -151,6 +240,8 @@ def _start_scheduler() -> BackgroundScheduler:
 
 @app.on_event("startup")
 def startup():
+    global local_loop
+    local_loop = asyncio.get_event_loop()
     app.state.scheduler = _start_scheduler()
     print(
         f"[scheduler] Jira daily at {config.JIRA_SCHEDULE_HOUR:02d}:{config.JIRA_SCHEDULE_MINUTE:02d} ICT | "

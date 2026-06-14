@@ -18,7 +18,7 @@ function appState() {
         // --- Data States ---
         history: [],
         latestReport: null,
-        pollingInterval: null,
+        ws: null,
         runningJob: null,
 
         // --- Initialize App ---
@@ -32,14 +32,11 @@ function appState() {
                 console.log("[SYSTEM DEBUG]: Route transition to " + value);
             });
 
-            // Initial fetch of logs and status
-            this.fetchStatus();
+            // Lấy báo cáo và lịch sử ban đầu từ API
             this.fetchHistoryAndReports();
 
-            // Set up polling every 3 seconds to check for concurrency locking status
-            this.pollingInterval = setInterval(() => {
-                this.fetchStatus();
-            }, 3000);
+            // Kết nối WebSocket để cập nhật trạng thái thời gian thực
+            this.initWebSocket();
         },
 
         // --- Fetch Current Crawling Status (Lock check) ---
@@ -106,6 +103,84 @@ function appState() {
                 }
             } catch (err) {
                 this.appendLog("[ERROR]: Lỗi khi lấy lịch sử/báo cáo từ Database: " + err.message);
+            }
+        },
+
+        // --- Khởi tạo kết nối WebSockets ---
+        initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/status`;
+            
+            this.appendLog(`[WEBSOCKET]: Đang thiết lập kết nối tới ${wsUrl}...`);
+            this.ws = new WebSocket(wsUrl);
+            
+            this.ws.onopen = () => {
+                this.appendLog("[WEBSOCKET]: Kết nối WebSocket thành công. Đang lắng nghe kênh sự kiện...");
+                console.log("[WEBSOCKET]: Connected successfully.");
+            };
+            
+            this.ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    if (message.type === 'status') {
+                        this.handleStatusUpdate(message.data);
+                    }
+                } catch (e) {
+                    console.error("[WEBSOCKET ERROR]: Không thể phân tích tin nhắn:", e);
+                }
+            };
+            
+            this.ws.onclose = (event) => {
+                this.appendLog("[WEBSOCKET WARNING]: Mất kết nối WebSocket. Tự động kết nối lại sau 5 giây...");
+                console.warn(`[WEBSOCKET]: Connection closed (code: ${event.code}). Reconnecting...`);
+                
+                if (this.ws) {
+                    this.ws = null;
+                }
+                
+                setTimeout(() => {
+                    this.initWebSocket();
+                }, 5000);
+            };
+            
+            this.ws.onerror = (error) => {
+                console.error("[WEBSOCKET ERROR]:", error);
+            };
+        },
+
+        // --- Xử lý Cập nhật Trạng thái Nhận được từ WS ---
+        handleStatusUpdate(status) {
+            const isJiraRunning = status.jira && status.jira.status === 'running';
+            const isSocialRunning = status.social && status.social.status === 'running';
+            const activeJobRunning = isJiraRunning || isSocialRunning;
+            
+            // Trường hợp 1: Chuyển sang trạng thái ĐANG CHẠY (Lock màn hình)
+            if (activeJobRunning && !this.isProcessing) {
+                this.isProcessing = true;
+                this.runningJob = isJiraRunning ? 'jira' : 'social';
+                this.triggerScreenShake();
+                this.appendLog(`[SYSTEM LOCK]: Tiến trình cào [${this.runningJob.toUpperCase()}] đang thực thi ngầm! Khóa giao diện.`);
+                
+                if (isJiraRunning) this.glassOpenA = true;
+                if (isSocialRunning) this.glassOpenB = true;
+            } 
+            // Trường hợp 2: Chuyển từ ĐANG CHẠY sang RẢNH (Giải phóng lock & Tải lại báo cáo)
+            else if (!activeJobRunning && this.isProcessing) {
+                this.isProcessing = false;
+                const finishedJob = this.runningJob || (status.jira.status !== 'idle' ? 'jira' : 'social');
+                const jobDetails = status[finishedJob];
+                
+                if (jobDetails && jobDetails.status === 'error') {
+                    this.appendLog(`[SYSTEM ERROR]: Tiến trình cào [${finishedJob.toUpperCase()}] THẤT BẠI. Lỗi: ${jobDetails.error || 'Lỗi hệ thống'}`);
+                } else {
+                    this.appendLog(`[SYSTEM UNLOCK]: Tiến trình cào [${finishedJob.toUpperCase()}] hoàn tất thành công. Giải phóng khóa.`);
+                }
+                
+                this.runningJob = null;
+                this.fetchHistoryAndReports(); // Tải lại lịch sử và báo cáo AI mới nhất
+                
+                this.glassOpenA = false;
+                this.glassOpenB = false;
             }
         },
 

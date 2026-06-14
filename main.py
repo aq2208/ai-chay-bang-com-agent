@@ -16,8 +16,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
@@ -117,6 +118,105 @@ async def disable_cache_middleware(request, call_next):
     return response
 
 
+# ── WebSockets Connection Manager ──────────────────────────────────────────
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"[ws] Client connected. Total active: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            print(f"[ws] Client disconnected. Total active: {len(self.active_connections)}")
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+manager = ConnectionManager()
+main_loop = None
+
+def broadcast_status_sync():
+    """Helper đồng bộ để lấy trạng thái mới nhất từ DB và gửi tới các WS client"""
+    global main_loop
+    db = SessionLocal()
+    try:
+        jira_latest = db.query(CrawlHistory).filter(CrawlHistory.job_type == "jira").order_by(CrawlHistory.id.desc()).first()
+        social_latest = db.query(CrawlHistory).filter(CrawlHistory.job_type == "social").order_by(CrawlHistory.id.desc()).first()
+        
+        status_data = {
+            "jira": {
+                "status": jira_latest.status if jira_latest else "idle",
+                "started_at": jira_latest.started_at.isoformat() + "Z" if jira_latest and jira_latest.started_at else None,
+                "finished_at": jira_latest.finished_at.isoformat() + "Z" if jira_latest and jira_latest.finished_at else None,
+                "triggered_by": jira_latest.triggered_by if jira_latest else None,
+                "error": jira_latest.error_message if jira_latest else None
+            },
+            "social": {
+                "status": social_latest.status if social_latest else "idle",
+                "started_at": social_latest.started_at.isoformat() + "Z" if social_latest and social_latest.started_at else None,
+                "finished_at": social_latest.finished_at.isoformat() + "Z" if social_latest and social_latest.finished_at else None,
+                "triggered_by": social_latest.triggered_by if social_latest else None,
+                "error": social_latest.error_message if social_latest else None
+            }
+        }
+        
+        if main_loop and main_loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                manager.broadcast({"type": "status", "data": status_data}),
+                main_loop
+            )
+    except Exception as e:
+        print(f"[ws error] Lỗi khi broadcast trạng thái production: {e}")
+    finally:
+        db.close()
+
+@api_app.websocket("/ws/status")
+async def websocket_status_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    db = SessionLocal()
+    try:
+        jira_latest = db.query(CrawlHistory).filter(CrawlHistory.job_type == "jira").order_by(CrawlHistory.id.desc()).first()
+        social_latest = db.query(CrawlHistory).filter(CrawlHistory.job_type == "social").order_by(CrawlHistory.id.desc()).first()
+        
+        initial_status = {
+            "jira": {
+                "status": jira_latest.status if jira_latest else "idle",
+                "started_at": jira_latest.started_at.isoformat() + "Z" if jira_latest and jira_latest.started_at else None,
+                "finished_at": jira_latest.finished_at.isoformat() + "Z" if jira_latest and jira_latest.finished_at else None,
+                "triggered_by": jira_latest.triggered_by if jira_latest else None,
+                "error": jira_latest.error_message if jira_latest else None
+            },
+            "social": {
+                "status": social_latest.status if social_latest else "idle",
+                "started_at": social_latest.started_at.isoformat() + "Z" if social_latest and social_latest.started_at else None,
+                "finished_at": social_latest.finished_at.isoformat() + "Z" if social_latest and social_latest.finished_at else None,
+                "triggered_by": social_latest.triggered_by if social_latest else None,
+                "error": social_latest.error_message if social_latest else None
+            }
+        }
+        await websocket.send_json({"type": "status", "data": initial_status})
+    except Exception as e:
+        print(f"[ws] Lỗi gửi trạng thái ban đầu: {e}")
+    finally:
+        db.close()
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
 # ── Concurrency Lock Worker ────────────────────────────────────────────────
 def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: int | None = None) -> None:
     """Worker executed in background thread. Updates database in-place."""
@@ -142,6 +242,8 @@ def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: i
         db.add(crawl)
         db.commit()
         db.refresh(crawl)
+    
+    broadcast_status_sync()
     
     try:
         print(f"[crawler] Starting job '{name}' (dry_run={dry_run})...")
@@ -172,6 +274,7 @@ def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: i
             print(f"[crawler] Job '{name}' finished, no report path found.")
             
         db.commit()
+        broadcast_status_sync()
     except Exception as exc:
         print(f"[crawler] Job '{name}' failed with error: {exc}")
         db.rollback()
@@ -179,6 +282,7 @@ def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: i
         crawl.finished_at = datetime.utcnow()
         crawl.error_message = str(exc)
         db.commit()
+        broadcast_status_sync()
     finally:
         db.close()
 
@@ -479,6 +583,10 @@ try:
         # Automatically initialize SQLite or PostgreSQL schemas
         Base.metadata.create_all(bind=engine)
         print("[database] Database tables verified/created successfully.")
+        
+        # Store event loop reference
+        global main_loop
+        main_loop = asyncio.get_running_loop()
         
         # Recover orphaned running jobs on startup
         db = SessionLocal()
