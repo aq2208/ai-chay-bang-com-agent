@@ -5,6 +5,15 @@ Bronze round-trip test (no network, no LLM):
 Run: .venv/bin/python test_bronze.py
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import config
+config.THREADS_TOKEN = "mock_token"
+os.environ["THREADS_ACCESS_TOKEN"] = "mock_token"
+
+
+
 from crawlers import bronze
 import connectors.threads as th
 from processors.image_analyzer import _to_image_input
