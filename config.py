@@ -83,7 +83,7 @@ KEYWORDS = [
 SENTIMENT_THRESHOLD      = 0.75   # below this → ask LLM as tiebreaker
 GROUPING_THRESHOLD       = 0.82   # cosine similarity to merge issues
 KB_SIMILARITY_THRESHOLD  = 0.48   # cosine similarity floor to accept a KB match
-DAYS_BACK                = 7      # how many days back to fetch data
+DAYS_BACK                = 0      # how many days back to fetch data, if config 0 -> dont care about time
 SCROLL_TIMES             = 4      # how many times to scroll down to load search results
 
 
