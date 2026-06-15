@@ -73,6 +73,7 @@ def _clean_content(text: str) -> str:
     # 2. Strip leading date token "dd mm yy" / "d mm yy" (older posts show absolute date)
     #    Pattern: 1-2 digits, space, 1-2 digits, space, 2 digits, optional trailing space
     text = _re.sub(r"^\d{1,2} \d{1,2} \d{2}\s*", "", text)
+    text = _re.sub(r"^\d{2}\/\d{2}\/\d{2}\s*", "", text)
 
     # 3. Strip trailing "Translate <digits and spaces>" pattern (any length)
     #    Handles: "Translate 9 1", "Translate 101 1", "Translate 103 6 1 3", etc.
