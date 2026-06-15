@@ -64,12 +64,17 @@ def _clean_content(text: str) -> str:
     """Remove redundant tokens injected by the Threads UI.
 
     - Leading time token: e.g. "1d ", "9h ", "17h ", "5d " (digits + d/h/m/s/w, optional space)
+    - Leading date token: e.g. "03 31 26 " (dd mm yy separated by spaces, for older posts)
     - Trailing "Translate <suffix>" when len(suffix.strip()) <= 8 characters
     """
     # 1. Strip leading time token (e.g. "1d", "9h", "2w", "30m")
     text = _re.sub(r"^\d+[smhdw]\s*", "", text, flags=_re.IGNORECASE)
 
-    # 2. Strip trailing "Translate <digits and spaces>" pattern (any length)
+    # 2. Strip leading date token "dd mm yy" / "d mm yy" (older posts show absolute date)
+    #    Pattern: 1-2 digits, space, 1-2 digits, space, 2 digits, optional trailing space
+    text = _re.sub(r"^\d{1,2} \d{1,2} \d{2}\s*", "", text)
+
+    # 3. Strip trailing "Translate <digits and spaces>" pattern (any length)
     #    Handles: "Translate 9 1", "Translate 101 1", "Translate 103 6 1 3", etc.
     text = _re.sub(r"\s+Translate[\s\d]+$", "", text, flags=_re.IGNORECASE)
 
