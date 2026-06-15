@@ -49,11 +49,31 @@ from pydantic import BaseModel, Field
 
 from config import KEYWORDS, DAYS_BACK, SCROLL_TIMES
 from crawlers import bronze
+from crawlers.image_utils import downgrade_image
 
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
+
+
+import re as _re
+
+
+def _clean_content(text: str) -> str:
+    """Remove redundant tokens injected by the Threads UI.
+
+    - Leading time token: e.g. "1d ", "9h ", "17h ", "5d " (digits + d/h/m/s/w, optional space)
+    - Trailing "Translate <suffix>" when len(suffix.strip()) <= 8 characters
+    """
+    # 1. Strip leading time token (e.g. "1d", "9h", "2w", "30m")
+    text = _re.sub(r"^\d+[smhdw]\s*", "", text, flags=_re.IGNORECASE)
+
+    # 2. Strip trailing "Translate <digits and spaces>" pattern (any length)
+    #    Handles: "Translate 9 1", "Translate 101 1", "Translate 103 6 1 3", etc.
+    text = _re.sub(r"\s+Translate[\s\d]+$", "", text, flags=_re.IGNORECASE)
+
+    return text.strip()
 
 
 class SocialPost(BaseModel):
@@ -69,18 +89,141 @@ class SocialPost(BaseModel):
 
 
 async def _fetch_and_encode_image(session: aiohttp.ClientSession, image_url: str) -> str | None:
-    """Download an image and return it as a base64 data URI (None on failure)."""
+    """Download an image, downgrade to 720p JPEG, and return as a base64 data URI."""
     try:
         async with session.get(image_url, timeout=10) as response:
             if response.status == 200:
                 content_type = response.headers.get("Content-Type", "image/jpeg")
                 data = await response.read()
                 encoded = base64.b64encode(data).decode("utf-8")
-                return f"data:{content_type};base64,{encoded}"
+                raw_uri = f"data:{content_type};base64,{encoded}"
+                # Downgrade to max 720p WebP — ~30-50% smaller than JPEG, sufficient for AI reports
+                return downgrade_image(raw_uri)
             return None
     except Exception as e:
         print(f"    [!] image fetch failed ({image_url[:30]}...): {e}")
         return None
+
+
+async def _extract_articles(page, session, keyword: str, max_age_hours: int,
+                             filter_stats: dict, removed_posts: list,
+                             seen_article_keys: set, posts: list,
+                             post_times: list, crawled_at: str, prefix: str):
+    """Extract and collect new (unseen) articles currently visible in DOM.
+
+    Threads uses virtual scrolling — articles can be unmounted as the user scrolls,
+    so we must harvest them incrementally on each scroll pass rather than waiting
+    until the very end.
+    """
+    articles = await page.locator('[role="article"]').all()
+    if not articles:
+        articles = await page.locator('div[data-pressable-container="true"]').all()
+
+    times_this_pass = []
+    new_collected = 0
+
+    for article in articles:
+        try:
+            # Dedup by raw text hash — same article seen before? skip it
+            raw_text = await article.inner_text()
+            art_hash = hashlib.md5(raw_text.encode("utf-8")).hexdigest()
+            if art_hash in seen_article_keys:
+                continue
+            seen_article_keys.add(art_hash)
+            new_collected += 1
+
+            # ── post URL ──
+            post_url = ""
+            try:
+                post_link = article.locator('a[href*="/post/"]')
+                if await post_link.count() > 0:
+                    href = await post_link.first.get_attribute("href")
+                    if href:
+                        post_url = f"https://www.threads.net{href}" if href.startswith("/") else href
+            except Exception:
+                pass
+
+            # ── time filter ──
+            posted_at_str = "Unknown"
+            time_el = article.locator("time")
+            if await time_el.count() > 0:
+                dt_str = await time_el.first.get_attribute("datetime")
+                if dt_str:
+                    post_time = parser.isoparse(dt_str)
+                    post_times.append(post_time)
+                    times_this_pass.append(post_time)
+                    age_h = (datetime.now(timezone.utc) - post_time).total_seconds() / 3600
+                    if max_age_hours is not None and age_h > max_age_hours:
+                        print(f"   ⏳ SKIP – post age {age_h:.1f}h exceeds max {max_age_hours}h")
+                        filter_stats["too_old"] += 1
+                        removed_posts.append({"url": post_url or "N/A", "reason": "too_old"})
+                        continue
+                    posted_at_str = post_time.strftime("%Y-%m-%d %H:%M:%S")
+
+            # ── text ──
+            lines = [ln.strip() for ln in raw_text.split("\n") if ln.strip()]
+            author, content = "", ""
+            if len(lines) >= 2:
+                author = lines[0]
+                if author.lower() in ("follow", "theo dõi") and len(lines) > 2:
+                    author = lines[1]
+                    content = " ".join(lines[2:min(8, len(lines))])
+                else:
+                    content = " ".join(lines[1:min(8, len(lines))])
+            content = _clean_content(content)
+
+            # ── images (download + base64, in parallel) ──
+            urls = []
+            for img in await article.locator("img").all():
+                src = await img.get_attribute("src")
+                alt = (await img.get_attribute("alt")) or ""
+                if src and "http" in src and "profile" not in alt.lower():
+                    urls.append(src)
+            images_b64: list = []
+            if urls:
+                results = await asyncio.gather(*[_fetch_and_encode_image(session, u) for u in urls])
+                images_b64 = [r for r in results if r]
+                if images_b64:
+                    print(f"  📸 encoded {len(images_b64)} image(s) for {author}")
+
+            # ── keep if enough text OR an image ──
+            if len(content) > 15 or images_b64:
+                if not post_url and author:
+                    clean_author = author.strip().lstrip("@")
+                    if clean_author:
+                        post_url = f"https://www.threads.net/@{clean_author}"
+                hash_input = content if content else f"{author}_{posted_at_str}"
+                post = SocialPost(
+                    post_hash_id=hashlib.md5(hash_input.encode("utf-8")).hexdigest(),
+                    platform="Threads",
+                    matched_keyword=keyword,
+                    author=author,
+                    content=content,
+                    posted_at=posted_at_str,
+                    crawled_at=crawled_at,
+                    post_url=post_url,
+                    images_base64=images_b64,
+                )
+                print(f"   ✅ KEEP – url='{post_url}' author='{author[:20]}' len={len(content)} imgs={len(images_b64)}")
+                posts.append(post.model_dump())
+            else:
+                if len(content) <= 15 and not images_b64:
+                    filter_stats["too_short"] += 1
+                    removed_posts.append({"url": post_url or "N/A", "reason": "too_short"})
+                print(f"   🚫 DISCARD – url='{post_url}' author='{author[:20]}' len={len(content)} imgs={len(images_b64)}")
+        except Exception as e:
+            print(f"   ⚠️ ERROR parsing article: {e}")
+            continue
+
+    # Log stats for this pass
+    if times_this_pass:
+        furthest = min(times_this_pass).strftime("%Y-%m-%d %H:%M:%S")
+        nearest = max(times_this_pass).strftime("%Y-%m-%d %H:%M:%S")
+        print(f"    {prefix} - visible {len(articles)} posts, +{new_collected} new harvested, furthest: {furthest}, nearest: {nearest}")
+    else:
+        print(f"    {prefix} - visible {len(articles)} posts, +{new_collected} new harvested, no timestamps")
+
+    return new_collected
 
 
 async def _crawl_keyword(context, session, keyword: str, scroll_times: int, max_age_hours: int, removed_posts: list) -> list[dict]:
@@ -131,168 +274,38 @@ async def _crawl_keyword(context, session, keyword: str, scroll_times: int, max_
             except Exception as e:
                 print(f"  [!] bypass login modal failed: {e}")
 
-        # Track keys to count new posts during scrolling
-        seen_keys = set()
-        
-        async def _get_new_posts_count() -> int:
-            articles = await page.locator('[role="article"]').all()
-            if not articles:
-                articles = await page.locator('div[data-pressable-container="true"]').all()
-            
-            new_count = 0
-            for art in articles:
-                try:
-                    text = await art.inner_text()
-                    h = hashlib.md5(text.encode("utf-8")).hexdigest()
-                    if h not in seen_keys:
-                        seen_keys.add(h)
-                        new_count += 1
-                except Exception:
-                    continue
-            return new_count
-
-        async def _log_articles_stats(prefix: str):
-            articles = await page.locator('[role="article"]').all()
-            if not articles:
-                articles = await page.locator('div[data-pressable-container="true"]').all()
-            
-            times = []
-            for art in articles:
-                try:
-                    time_el = art.locator("time")
-                    if await time_el.count() > 0:
-                        dt_str = await time_el.first.get_attribute("datetime")
-                        if dt_str:
-                            from dateutil import parser
-                            times.append(parser.isoparse(dt_str))
-                except Exception:
-                    continue
-            
-            count = len(articles)
-            if times:
-                furthest = min(times).strftime("%Y-%m-%d %H:%M:%S")
-                nearest = max(times).strftime("%Y-%m-%d %H:%M:%S")
-                print(f"    {prefix} - found {count} posts, furthest: {furthest}, nearest: {nearest}")
-            else:
-                print(f"    {prefix} - found {count} posts, no timestamps found")
+        crawled_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # seen_article_keys: dedup raw-text hash across all scroll passes
+        seen_article_keys: set = set()
+        post_times: list = []
 
         await _bypass_login_modal()
-        await _get_new_posts_count()
-        await _log_articles_stats("First search")
+        await _extract_articles(
+            page, session, keyword, max_age_hours,
+            filter_stats, removed_posts, seen_article_keys,
+            posts, post_times, crawled_at, "First search"
+        )
 
         consecutive_empty_scrolls = 0
         for scroll_idx in range(1, scroll_times + 1):
             await _bypass_login_modal()
             await page.mouse.wheel(0, 3000)
             await page.wait_for_timeout(2500)
-            
-            new_found = await _get_new_posts_count()
-            await _log_articles_stats(f"Scroll {scroll_idx}")
+
+            new_found = await _extract_articles(
+                page, session, keyword, max_age_hours,
+                filter_stats, removed_posts, seen_article_keys,
+                posts, post_times, crawled_at, f"Scroll {scroll_idx}"
+            )
+
             if new_found == 0:
                 consecutive_empty_scrolls += 1
             else:
                 consecutive_empty_scrolls = 0
-                
+
             if consecutive_empty_scrolls >= 2:
                 print(f"    🛑 [{scroll_idx}] 2 consecutive scrolls with 0 new posts. Stopping scroll for keyword '{keyword}'...")
                 break
-
-        await _bypass_login_modal()
-        articles = await page.locator('[role="article"]').all()
-        if not articles:
-            articles = await page.locator('div[data-pressable-container="true"]').all()
-
-        crawled_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        post_times = []
-
-        for article in articles:
-            try:
-                # ── post URL ──
-                post_url = ""
-                try:
-                    post_link = article.locator('a[href*="/post/"]')
-                    if await post_link.count() > 0:
-                        href = await post_link.first.get_attribute("href")
-                        if href:
-                            if href.startswith("/"):
-                                post_url = f"https://www.threads.net{href}"
-                            else:
-                                post_url = href
-                except Exception:
-                    pass
-
-                # ── time filter ──
-                posted_at_str = "Unknown"
-                time_el = article.locator("time")
-                if await time_el.count() > 0:
-                    dt_str = await time_el.first.get_attribute("datetime")
-                    if dt_str:
-                        post_time = parser.isoparse(dt_str)
-                        post_times.append(post_time)
-                        age_h = (datetime.now(timezone.utc) - post_time).total_seconds() / 3600
-                        if max_age_hours is not None and age_h > max_age_hours:
-                            print(f"   ⏳ SKIP – post age {age_h:.1f}h exceeds max {max_age_hours}h")
-                            filter_stats["too_old"] += 1
-                            # Record removed post URL and reason
-                            removed_posts.append({"url": post_url if post_url else "N/A", "reason": "too_old"})
-                            continue
-                        posted_at_str = post_time.strftime("%Y-%m-%d %H:%M:%S")
-
-                # ── text ──
-                lines = [ln.strip() for ln in (await article.inner_text()).split("\n") if ln.strip()]
-                author, content = "", ""
-                if len(lines) >= 2:
-                    author = lines[0]
-                    if author.lower() in ("follow", "theo dõi") and len(lines) > 2:
-                        author = lines[1]
-                        content = " ".join(lines[2:min(8, len(lines))])
-                    else:
-                        content = " ".join(lines[1:min(8, len(lines))])
-
-                # ── images (download + base64, in parallel) ──
-                urls = []
-                for img in await article.locator("img").all():
-                    src = await img.get_attribute("src")
-                    alt = (await img.get_attribute("alt")) or ""
-                    if src and "http" in src and "profile" not in alt.lower():
-                        urls.append(src)
-                images_b64: list = []
-                if urls:
-                    results = await asyncio.gather(*[_fetch_and_encode_image(session, u) for u in urls])
-                    images_b64 = [r for r in results if r]
-                    if images_b64:
-                        print(f"  📸 encoded {len(images_b64)} image(s) for {author}")
-
-                # ── keep if enough text OR an image ──
-                if len(content) > 15 or images_b64:
-                    # keep the post
-                    if not post_url and author:
-                        clean_author = author.strip().lstrip("@")
-                        if clean_author:
-                            post_url = f"https://www.threads.net/@{clean_author}"
-                    hash_input = content if content else f"{author}_{posted_at_str}"
-                    post = SocialPost(
-                        post_hash_id=hashlib.md5(hash_input.encode("utf-8")).hexdigest(),
-                        platform="Threads",
-                        matched_keyword=keyword,
-                        author=author,
-                        content=content,
-                        posted_at=posted_at_str,
-                        crawled_at=crawled_at,
-                        post_url=post_url,
-                        images_base64=images_b64,
-                    )
-                    print(f"   ✅ KEEP – url='{post_url}' author='{author[:20]}' len={len(content)} imgs={len(images_b64)}")
-                    posts.append(post.model_dump())
-                else:
-                    # Determine discard reason
-                    if len(content) <= 15 and not images_b64:
-                        filter_stats["too_short"] += 1
-                        removed_posts.append({"url": post_url if post_url else "N/A", "reason": "too_short"})
-                    print(f"   🚫 DISCARD – url='{post_url}' author='{author[:20]}' len={len(content)} imgs={len(images_b64)}")
-            except Exception as e:
-                print(f"   ⚠️ ERROR parsing article: {e}")
-                continue
 
         furthest_str = "N/A"
         nearest_str = "N/A"
@@ -301,7 +314,7 @@ async def _crawl_keyword(context, session, keyword: str, scroll_times: int, max_
             newest_time = max(post_times)
             furthest_str = oldest_time.strftime("%d/%m/%Y")
             nearest_str = newest_time.strftime("%d/%m/%Y")
-        print(f"  found total {len(articles)} post(s), furthest post is: {furthest_str}, nearest post is: {nearest_str}")
+        print(f"  found total {len(seen_article_keys)} unique article(s) seen, furthest post is: {furthest_str}, nearest post is: {nearest_str}")
     except Exception as e:
         print(f"  ❌ error on '{keyword}': {e}")
     finally:
