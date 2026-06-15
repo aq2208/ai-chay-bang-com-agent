@@ -83,14 +83,15 @@ async def _fetch_and_encode_image(session: aiohttp.ClientSession, image_url: str
         return None
 
 
-async def _crawl_keyword(
-    context, session, keyword: str, scroll_times: int, max_age_hours: int
-) -> list[dict]:
+async def _crawl_keyword(context, session, keyword: str, scroll_times: int, max_age_hours: int, removed_posts: list) -> list[dict]:
     """Scrape one keyword's Threads search results into SocialPost dicts."""
     search_url = f"https://www.threads.net/search?q={urllib.parse.quote(keyword)}&serp_type=default"
     posts: list[dict] = []
     page = await context.new_page()
     print(f"\n🔍 [Search] keyword: '{keyword}'...")
+    # Initialize filter statistics counters
+    filter_stats = {"too_old": 0, "too_short": 0}
+    # removed_posts is supplied by caller
     try:
         await page.goto(search_url, wait_until="domcontentloaded")
         await page.wait_for_timeout(6000)
@@ -230,6 +231,10 @@ async def _crawl_keyword(
                         post_times.append(post_time)
                         age_h = (datetime.now(timezone.utc) - post_time).total_seconds() / 3600
                         if max_age_hours is not None and age_h > max_age_hours:
+                            print(f"   ⏳ SKIP – post age {age_h:.1f}h exceeds max {max_age_hours}h")
+                            filter_stats["too_old"] += 1
+                            # Record removed post URL and reason
+                            removed_posts.append({"url": post_url if post_url else "N/A", "reason": "too_old"})
                             continue
                         posted_at_str = post_time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -260,6 +265,7 @@ async def _crawl_keyword(
 
                 # ── keep if enough text OR an image ──
                 if len(content) > 15 or images_b64:
+                    # keep the post
                     if not post_url and author:
                         clean_author = author.strip().lstrip("@")
                         if clean_author:
@@ -276,8 +282,16 @@ async def _crawl_keyword(
                         post_url=post_url,
                         images_base64=images_b64,
                     )
+                    print(f"   ✅ KEEP – url='{post_url}' author='{author[:20]}' len={len(content)} imgs={len(images_b64)}")
                     posts.append(post.model_dump())
-            except Exception:
+                else:
+                    # Determine discard reason
+                    if len(content) <= 15 and not images_b64:
+                        filter_stats["too_short"] += 1
+                        removed_posts.append({"url": post_url if post_url else "N/A", "reason": "too_short"})
+                    print(f"   🚫 DISCARD – url='{post_url}' author='{author[:20]}' len={len(content)} imgs={len(images_b64)}")
+            except Exception as e:
+                print(f"   ⚠️ ERROR parsing article: {e}")
                 continue
 
         furthest_str = "N/A"
@@ -294,6 +308,10 @@ async def _crawl_keyword(
         await page.close()
 
     print(f"  ✅ {len(posts)} post(s) for '{keyword}'")
+    # ---- Keyword summary ----
+    print(f"🧮 Finished keyword '{keyword}': kept {len(posts)} post(s)")
+    # Print filter statistics for this keyword
+    print(f"🔎 Filter stats for '{keyword}': {filter_stats}")
     return posts
 
 
@@ -357,8 +375,17 @@ async def _run(keywords: list[str], scroll_times: int, max_age_hours: int) -> li
                 else:
                     print("🔓 [Auth] No auth state or token found. Proceeding as guest (anonymous search)...")
 
+            # Always initialize removed_posts here — after auth setup, before keyword loop
+            removed_posts = []
+            print(f"🔑 [Auth] context ready. Starting crawl for {len(keywords)} keyword(s)...")
+
+            # Loop over each keyword and crawl
             for kw in keywords:
-                all_records.extend(await _crawl_keyword(context, session, kw, scroll_times, max_age_hours))
+                print(f"\n{'='*56}")
+                print(f"🔎 Starting keyword: '{kw}'")
+                kw_posts = await _crawl_keyword(context, session, kw, scroll_times, max_age_hours, removed_posts)
+                print(f"📦 Keyword '{kw}' returned {len(kw_posts)} post(s), removed so far: {len(removed_posts)}")
+                all_records.extend(kw_posts)
                 await asyncio.sleep(random.uniform(3.0, 6.0))  # anti-bot jitter
             await browser.close()
 
@@ -369,6 +396,23 @@ async def _run(keywords: list[str], scroll_times: int, max_age_hours: int) -> li
         if h not in seen:
             seen.add(h)
             unique.append(rec)
+
+    # ---- Statistics ----
+    total_raw = len(all_records)
+    deduped = len(unique)
+    duplicate_removed = total_raw - deduped
+    print(f"🧮 Stats: total raw records {total_raw}, duplicates removed {duplicate_removed}, unique kept {deduped}")
+    print("🔗 Post URLs kept (for testing):")
+    for r in unique:
+        url = r.get("post_url")
+        if url:
+            print(f"   {url}")
+    # ---- Removed posts ----
+    if removed_posts:
+        print("🚮 Removed post URLs with reasons (for testing):")
+        for rp in removed_posts:
+            print(f"   {rp['url']}  <-- {rp['reason']}")
+
     return unique
 
 
@@ -387,7 +431,7 @@ def crawl(
     keywords = keywords or KEYWORDS
     scroll_times = scroll_times if scroll_times is not None else SCROLL_TIMES
     if max_age_hours is None:
-    max_age_hours = None if DAYS_BACK == 0 else DAYS_BACK * 24
+        max_age_hours = None if DAYS_BACK == 0 else DAYS_BACK * 24
 
     print("=" * 56)
     print("🚀 Starting Threads Crawler...")
