@@ -1,6 +1,7 @@
 # Virtualenvs / caches
 .venv/
 venv/
+.hf_cache/
 __pycache__/
 *.pyc
 *.pyo
