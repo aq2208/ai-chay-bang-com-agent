@@ -1,6 +1,9 @@
 name: Build and Deploy Agent
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -38,7 +41,11 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          IMAGE_TAG="v${{ github.run_number }}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            IMAGE_TAG="${{ github.ref_name }}"
+          else
+            IMAGE_TAG="v${{ github.run_number }}"
+          fi
           IMAGE_NAME="vcr.vngcloud.vn/111480-abp111948/ai-chay-bang-com-agent:$IMAGE_TAG"
           echo "Building image $IMAGE_NAME..."
           docker build --platform linux/amd64 --build-arg HF_TOKEN="${{ secrets.HF_TOKEN }}" -t $IMAGE_NAME .
@@ -47,7 +54,11 @@ jobs:
 
       - name: Deploy Update to GreenNode Runtime
         run: |
-          IMAGE_TAG="v${{ github.run_number }}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            IMAGE_TAG="${{ github.ref_name }}"
+          else
+            IMAGE_TAG="v${{ github.run_number }}"
+          fi
           IMAGE_NAME="vcr.vngcloud.vn/111480-abp111948/ai-chay-bang-com-agent:$IMAGE_TAG"
           echo "Deploying version $IMAGE_NAME to runtime-036467c8-dcc5-4479-a6a4-85796af3f47c..."
           bash scripts/runtime.sh update runtime-036467c8-dcc5-4479-a6a4-85796af3f47c \
