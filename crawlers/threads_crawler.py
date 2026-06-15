@@ -229,7 +229,7 @@ async def _crawl_keyword(
                         post_time = parser.isoparse(dt_str)
                         post_times.append(post_time)
                         age_h = (datetime.now(timezone.utc) - post_time).total_seconds() / 3600
-                        if age_h > max_age_hours:
+                        if max_age_hours is not None and age_h > max_age_hours:
                             continue
                         posted_at_str = post_time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -386,7 +386,8 @@ def crawl(
     """
     keywords = keywords or KEYWORDS
     scroll_times = scroll_times if scroll_times is not None else SCROLL_TIMES
-    max_age_hours = max_age_hours if max_age_hours is not None else DAYS_BACK * 24
+    if max_age_hours is None:
+    max_age_hours = None if DAYS_BACK == 0 else DAYS_BACK * 24
 
     print("=" * 56)
     print("🚀 Starting Threads Crawler...")
