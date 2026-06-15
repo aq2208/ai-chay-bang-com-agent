@@ -21,6 +21,13 @@ function appState() {
         ws: null,
         runningJob: null,
 
+        // --- Report Generation States ---
+        reportStartTime: '',
+        reportEndTime: '',
+        isGeneratingReport: false,
+        reportGenMessage: '',
+        reportGenError: false,
+
         // --- Initialize App ---
         initApp() {
             this.appendLog("[SYSTEM]: Khởi tạo trung tâm chỉ huy thành công.");
@@ -185,6 +192,59 @@ function appState() {
             }
         },
 
+        // --- Generate Report from DB posts (date range) ---
+        async generateReport() {
+            if (this.isGeneratingReport) return;
+
+            if (!this.reportStartTime || !this.reportEndTime) {
+                this.reportGenMessage = '[ERROR]: Vui lòng chọn cả Start Data Time và End Data Time.';
+                this.reportGenError = true;
+                return;
+            }
+
+            this.isGeneratingReport = true;
+            this.reportGenMessage = '';
+            this.reportGenError = false;
+
+            const startIso = new Date(this.reportStartTime).toISOString();
+            const endIso = new Date(this.reportEndTime).toISOString();
+
+            this.appendLog(`[REPORT]: Gửi yêu cầu tạo báo cáo từ ${this.reportStartTime} → ${this.reportEndTime}...`);
+
+            try {
+                const res = await fetch('/api/reports/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        start_data_time: startIso,
+                        end_data_time: endIso,
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.detail || data.message || 'Lỗi không xác định.');
+                }
+
+                if (data.count === 0) {
+                    this.reportGenMessage = `[INFO]: ${data.message}`;
+                    this.reportGenError = false;
+                    this.appendLog(`[REPORT]: ${data.message}`);
+                } else {
+                    this.reportGenMessage = `[SUCCESS]: ${data.message} — Báo cáo đang được tạo nền, hãy nhấn REFRESH sau vài giây.`;
+                    this.reportGenError = false;
+                    this.appendLog(`[REPORT]: Đang tạo báo cáo từ ${data.count} bài đăng...`);
+                }
+            } catch (err) {
+                this.reportGenMessage = `[ERROR]: ${err.message}`;
+                this.reportGenError = true;
+                this.appendLog(`[REPORT ERROR]: ${err.message}`);
+            } finally {
+                this.isGeneratingReport = false;
+            }
+        },
+
         // --- Trigger Crawling ---
         async triggerCrawl(jobType) {
             if (this.isProcessing) return;
@@ -280,6 +340,18 @@ function appState() {
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;");
+        },
+
+        // --- Render Markdown to HTML using marked.js ---
+        renderMarkdown(content) {
+            if (!content) return '';
+            if (typeof marked === 'undefined') return this.escapeHtml(content);
+            try {
+                return marked.parse(content);
+            } catch (e) {
+                console.error('[MD]: Failed to parse markdown:', e);
+                return this.escapeHtml(content);
+            }
         }
     }
 }

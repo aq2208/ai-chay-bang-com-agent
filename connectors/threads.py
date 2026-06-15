@@ -18,9 +18,18 @@ SOURCE = "threads"
 
 
 def _to_item(rec: dict) -> dict:
-    posted = rec.get("posted_at") or ""
-    if not posted or posted == "Unknown":
-        posted = rec.get("crawled_at", "")
+    def _as_str(val) -> str:
+        """Normalise a datetime object or ISO string to a plain string."""
+        if val is None:
+            return ""
+        from datetime import datetime as _dt
+        if isinstance(val, _dt):
+            return val.isoformat()
+        return str(val).strip()
+
+    posted = _as_str(rec.get("posted_at"))
+    if not posted or posted.lower() == "unknown":
+        posted = _as_str(rec.get("crawled_at"))
     return {
         "id":              rec.get("post_hash_id", ""),
         "source":          SOURCE,
