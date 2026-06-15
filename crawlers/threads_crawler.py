@@ -92,6 +92,9 @@ async def _crawl_keyword(
     page = await context.new_page()
     print(f"\n🔍 [Search] keyword: '{keyword}'...")
     try:
+        await page.goto(search_url, wait_until="domcontentloaded")
+        await page.wait_for_timeout(6000)
+
         async def _bypass_login_modal():
             try:
                 await page.evaluate("""() => {

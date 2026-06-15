@@ -104,6 +104,9 @@ async def _crawl_comments_for_thread(
     print(f"\n💬 [Comments] Crawling thread: {post_url}...")
 
     try:
+        await page.goto(post_url, wait_until="domcontentloaded")
+        await page.wait_for_timeout(6000)
+
         async def _bypass_login_modal():
             try:
                 await page.evaluate("""() => {
