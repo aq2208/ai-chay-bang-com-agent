@@ -8,6 +8,7 @@ __pycache__/
 venv/
 chroma_db/
 output/
+data/
 data/raw/
 data/test/
 .hf_cache/
