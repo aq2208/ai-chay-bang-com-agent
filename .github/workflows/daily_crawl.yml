@@ -3,7 +3,7 @@ name: Daily Crawl and Sync
 on:
   schedule:
     # Runs daily at a less congested minute around 1:00 AM UTC (8:37 AM VN time) to minimize GitHub Actions scheduling delay
-    - cron: '37 1 * * *'
+    - cron: '0 8 * * *'
   workflow_dispatch:
     # Allows manual trigger from GitHub UI / API
 
@@ -26,6 +26,8 @@ jobs:
           python -m playwright install chromium --with-deps
 
       - name: Run Playwright Threads Crawler
+        env:
+          THREADS_AUTH_STATE_JSON: ${{ secrets.THREADS_AUTH_STATE_JSON }}
         run: |
           python -m crawlers.threads_crawler
 

@@ -46,7 +46,9 @@ from dateutil import parser
 from playwright.async_api import async_playwright
 from pydantic import BaseModel, Field
 
+import os
 import sys
+from dotenv import load_dotenv
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from config import SCROLL_TIMES
@@ -102,14 +104,80 @@ async def _crawl_comments_for_thread(
     print(f"\n💬 [Comments] Crawling thread: {post_url}...")
 
     try:
-        await page.goto(post_url, wait_until="domcontentloaded")
-        await page.wait_for_timeout(6000)
+        async def _bypass_login_modal():
+            try:
+                await page.evaluate("""() => {
+                    const loginTexts = ["Continue with Instagram", "Say more with Threads", "Log in or sign up for Threads"];
+                    let targetElement = null;
+                    for (const text of loginTexts) {
+                        const matches = Array.from(document.querySelectorAll('*')).filter(x => x.textContent && x.textContent.includes(text));
+                        if (matches.length > 0) {
+                            targetElement = matches.pop();
+                            break;
+                        }
+                    }
+                    if (targetElement) {
+                        let current = targetElement;
+                        let deepestSafeParent = null;
+                        while (current && current !== document.body) {
+                            const hasTime = current.querySelector('time');
+                            if (!hasTime) {
+                                deepestSafeParent = current;
+                            } else {
+                                break;
+                            }
+                            current = current.parentElement;
+                        }
+                        if (deepestSafeParent) {
+                            deepestSafeParent.remove();
+                        }
+                    }
+                    document.body.style.setProperty('overflow', 'auto', 'important');
+                    document.documentElement.style.setProperty('overflow', 'auto', 'important');
+                }""")
+            except Exception:
+                pass
+
+        # Track keys to count new comments during scrolling
+        seen_keys = set()
         
-        # Scroll to load comments
-        for _ in range(scroll_times):
+        async def _get_new_comments_count() -> int:
+            articles = await page.locator('[role="article"]').all()
+            if not articles:
+                articles = await page.locator('div[data-pressable-container="true"]').all()
+            
+            new_count = 0
+            for art in articles:
+                try:
+                    text = await art.inner_text()
+                    h = hashlib.md5(text.encode("utf-8")).hexdigest()
+                    if h not in seen_keys:
+                        seen_keys.add(h)
+                        new_count += 1
+                except Exception:
+                    continue
+            return new_count
+
+        await _bypass_login_modal()
+        await _get_new_comments_count()
+
+        consecutive_empty_scrolls = 0
+        for scroll_idx in range(1, scroll_times + 1):
+            await _bypass_login_modal()
             await page.mouse.wheel(0, 2000)
             await page.wait_for_timeout(2000)
+            
+            new_found = await _get_new_comments_count()
+            if new_found == 0:
+                consecutive_empty_scrolls += 1
+            else:
+                consecutive_empty_scrolls = 0
+                
+            if consecutive_empty_scrolls >= 2:
+                print(f"  🛑 [{scroll_idx}] 2 consecutive scrolls with 0 new comments. Stopping scroll for thread...")
+                break
 
+        await _bypass_login_modal()
         articles = await page.locator('[role="article"]').all()
         if not articles:
             articles = await page.locator('div[data-pressable-container="true"]').all()
@@ -202,11 +270,65 @@ async def _crawl_comments_for_thread(
 
 
 async def _run(threads: list[dict], scroll_times: int) -> list[dict]:
+    load_dotenv()
     all_comments: list[dict] = []
     async with aiohttp.ClientSession() as session:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(user_agent=_USER_AGENT)
+            
+            storage_state = None
+            env_auth_state = os.getenv("THREADS_AUTH_STATE_JSON")
+            auth_path = os.path.join("data", "auth_state.json")
+            
+            if env_auth_state:
+                try:
+                    import json
+                    storage_state = json.loads(env_auth_state)
+                    print("🔑 [Auth] Loaded session from THREADS_AUTH_STATE_JSON environment variable.")
+                except Exception as e:
+                    print(f"⚠️ [Auth] Failed to parse THREADS_AUTH_STATE_JSON environment variable: {e}")
+            
+            if not storage_state and os.path.exists(auth_path):
+                storage_state = auth_path
+                print(f"🔑 [Auth] Loaded session from storage state file: {auth_path}")
+            
+            if storage_state:
+                context = await browser.new_context(user_agent=_USER_AGENT, storage_state=storage_state)
+            else:
+                context = await browser.new_context(user_agent=_USER_AGENT)
+                token = os.getenv("THREADS_SESSION_ID") or os.getenv("THREADS_TOKEN")
+                if token:
+                    if "=" in token:
+                        cookies = []
+                        for pair in token.split(";"):
+                            pair = pair.strip()
+                            if "=" in pair:
+                                name, val = pair.split("=", 1)
+                                cookies.append({
+                                    "name": name,
+                                    "value": val,
+                                    "domain": ".threads.net",
+                                    "path": "/"
+                                })
+                        if cookies:
+                            await context.add_cookies(cookies)
+                            print(f"🔑 [Auth] Added {len(cookies)} cookies from THREADS_SESSION_ID / THREADS_TOKEN.")
+                    else:
+                        cookies = [
+                            {
+                                "name": "sessionid",
+                                "value": token,
+                                "domain": ".threads.net",
+                                "path": "/",
+                                "secure": True,
+                                "httpOnly": True
+                            }
+                        ]
+                        await context.add_cookies(cookies)
+                        print(f"🔑 [Auth] Added sessionid cookie from THREADS_SESSION_ID / THREADS_TOKEN.")
+                else:
+                    print("🔓 [Auth] No auth state or token found. Proceeding as guest (anonymous search)...")
+
             for post in threads:
                 all_comments.extend(await _crawl_comments_for_thread(context, session, post, scroll_times))
                 await asyncio.sleep(random.uniform(3.0, 6.0))  # anti-bot jitter
