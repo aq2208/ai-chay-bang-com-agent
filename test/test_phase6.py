@@ -94,9 +94,35 @@ def test_social_job_dry_run():
     print("=" * 50)
     print("TEST: social_job — dry_run=True (mock data, full pipeline)")
     print("=" * 50)
-    from jobs.social_job import run
+    from jobs.social_job import run, run_report_only
+    from mock_data import get_mock_social
+    from processors.preprocessor import preprocess
+    from processors.sentiment import filter_negative
     try:
+        # 1) Run crawler/preprocessing/sentiment pipeline
         result = run(dry_run=True)
+        
+        # 2) Run report-generation pipeline to get a valid report_path for testing
+        raw_mock = get_mock_social()
+        preprocessed = preprocess(raw_mock)
+        negatives = filter_negative(preprocessed)
+        
+        # Map to raw DB post dictionary structure expected by run_report_only
+        db_posts = []
+        for it in negatives:
+            db_posts.append({
+                "id": it["id"],
+                "source": it.get("source", "threads"),
+                "matched_keyword": it.get("matched_keyword"),
+                "author": it.get("author"),
+                "text": it.get("text"),
+                "timestamp": it.get("timestamp"),
+                "post_url": it.get("post_url"),
+                "images": it.get("images", [])
+            })
+            
+        report_res = run_report_only(db_posts)
+        result["report_path"] = report_res["report_path"]
     except Exception as e:
         if _quota_skip(e):
             print(f"  ⏭  Skipped — API quota/network: {type(e).__name__}: {e}\n")
@@ -111,6 +137,9 @@ def test_social_job_dry_run():
     assert result["issues"] >= 0
     assert result["mentions"] >= result["issues"]
     print("  ✅ pass\n")
+
+
+
 
 
 if __name__ == "__main__":
