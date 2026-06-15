@@ -11,6 +11,10 @@ Checks, in order:
   4. Agentic Q&A — query the issues indexed by step 3
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import json
 
 import config

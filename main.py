@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 from fastapi.staticfiles import StaticFiles
@@ -82,6 +82,11 @@ class AIReport(Base):
 
 class RawPost(Base):
     __tablename__ = "raw_posts"
+    post_hash_id = Column(String(100), primary_key=True, index=True)
+
+
+class Post(Base):
+    __tablename__ = "posts"
     post_hash_id = Column(String(100), primary_key=True, index=True)
     platform = Column(String(50), nullable=False)
     matched_keyword = Column(String(200), nullable=True)
@@ -218,11 +223,10 @@ async def websocket_status_endpoint(websocket: WebSocket):
 
 
 # ── Concurrency Lock Worker ────────────────────────────────────────────────
-def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: int | None = None) -> None:
+def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: int | None = None, raw_posts: list[dict] | None = None) -> None:
     """Worker executed in background thread. Updates database in-place."""
     # Lazily import to prevent heavy ML costs at startup
     from jobs import jira_job, social_job
-    runner = jira_job.run if name == "jira" else social_job.run
     
     db = SessionLocal()
     crawl = None
@@ -247,7 +251,10 @@ def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: i
     
     try:
         print(f"[crawler] Starting job '{name}' (dry_run={dry_run})...")
-        result = runner(dry_run=dry_run)
+        if name == "social":
+            result = social_job.run(dry_run=dry_run, raw_posts=raw_posts)
+        else:
+            result = jira_job.run(dry_run=dry_run)
         
         # Read the report content if report_path exists
         report_content = ""
@@ -348,38 +355,6 @@ def status():
         db.close()
 
 
-@api_app.post("/api/ingest/social", tags=["ingest"])
-def ingest_social(payload: list[dict]):
-    db = SessionLocal()
-    try:
-        new_count = 0
-        for item in payload:
-            post_id = item.get("id") or item.get("post_hash_id")
-            if not post_id:
-                continue
-            exists = db.query(RawPost).filter(RawPost.post_hash_id == post_id).first()
-            if not exists:
-                raw_post = RawPost(
-                    post_hash_id=post_id,
-                    platform=item.get("platform", "Threads"),
-                    matched_keyword=item.get("matched_keyword"),
-                    author=item.get("author"),
-                    content=item.get("text") or item.get("content"),
-                    posted_at=item.get("timestamp") or item.get("posted_at"),
-                    crawled_at=item.get("crawled_at") or datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                    post_url=item.get("url") or item.get("post_url"),
-                    images_base64=item.get("images") or item.get("images_base64", [])
-                )
-                db.add(raw_post)
-                new_count += 1
-        db.commit()
-        return {"message": f"Successfully ingested {len(payload)} posts. New: {new_count}.", "status": "ok"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ingestion failed: {e}")
-    finally:
-        db.close()
-
 
 @api_app.post("/api/crawl/fail", tags=["ops"])
 def crawl_fail(payload: dict):
@@ -426,13 +401,9 @@ def run_social(background_tasks: BackgroundTasks, dry_run: bool = True, triggere
     try:
         active = db.query(CrawlHistory).filter(CrawlHistory.status == "running").first()
         if active:
-            if triggered_by == "github_workflow" and active.job_type == "social" and active.triggered_by == "manual_right_btn":
-                background_tasks.add_task(_run_job, "social", dry_run, triggered_by, crawl_id=active.id)
-                return {"message": "Bắt đầu xử lý dữ liệu cào từ GitHub Actions.", "status": "started"}
-                
             raise HTTPException(status_code=400, detail="Hệ thống bận. Tiến trình cào dữ liệu khác đang hoạt động.")
         
-        if not dry_run and triggered_by != "github_workflow":
+        if not dry_run:
             if os.getenv("GITHUB_PAT") and os.getenv("GITHUB_REPO"):
                 triggered = trigger_github_workflow()
                 if triggered:
@@ -461,6 +432,67 @@ def run_social(background_tasks: BackgroundTasks, dry_run: bool = True, triggere
         
         background_tasks.add_task(_run_job, "social", dry_run, triggered_by)
         return {"message": "Kích hoạt cào Social thành công.", "status": "started"}
+    finally:
+        db.close()
+
+
+@api_app.post("/run/social/callback", tags=["jobs"])
+def run_social_callback(
+    background_tasks: BackgroundTasks,
+    payload: list[dict] = Body(...),
+    dry_run: bool = False
+):
+    db = SessionLocal()
+    try:
+        # Find the active social crawl running record triggered by FE (manual_right_btn)
+        active = db.query(CrawlHistory).filter(
+            CrawlHistory.job_type == "social",
+            CrawlHistory.status == "running",
+            CrawlHistory.triggered_by == "manual_right_btn"
+        ).order_by(CrawlHistory.id.desc()).first()
+        
+        # If not found, look for any active social running record
+        if not active:
+            active = db.query(CrawlHistory).filter(
+                CrawlHistory.job_type == "social",
+                CrawlHistory.status == "running"
+            ).order_by(CrawlHistory.id.desc()).first()
+            
+        # If still not found, create a new history record
+        if not active:
+            active = CrawlHistory(
+                job_type="social",
+                status="running",
+                started_at=datetime.utcnow(),
+                triggered_by="github_workflow"
+            )
+            db.add(active)
+            db.commit()
+            db.refresh(active)
+
+        # Deduplicate the incoming raw posts
+        non_duplicates = []
+        for item in payload:
+            post_id = item.get("id") or item.get("post_hash_id")
+            if not post_id:
+                continue
+            exists = db.query(RawPost).filter(RawPost.post_hash_id == post_id).first()
+            if not exists:
+                # Save hash ID to deduplication table raw_posts
+                raw_post = RawPost(post_hash_id=post_id)
+                db.add(raw_post)
+                non_duplicates.append(item)
+        db.commit()
+
+        background_tasks.add_task(
+            _run_job,
+            "social",
+            dry_run,
+            "github_workflow",
+            crawl_id=active.id,
+            raw_posts=non_duplicates
+        )
+        return {"message": "Bắt đầu xử lý dữ liệu cào từ GitHub Actions.", "status": "started"}
     finally:
         db.close()
 

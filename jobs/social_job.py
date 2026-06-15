@@ -29,12 +29,13 @@ from report.generator import generate_report, save_report
 from report.guardrails import check_report
 
 
-def run(dry_run: bool = True) -> dict:
+def run(dry_run: bool = True, raw_posts: list[dict] | None = None) -> dict:
     """
     Run the Social Media complaint pipeline.
 
     Args:
         dry_run: True → use mock social data; False → call real FB + Threads connectors
+        raw_posts: Optional list of raw posts in memory (from GitHub Action call)
 
     Returns:
         {"report_path": str, "issues": int, "mentions": int}
@@ -46,6 +47,11 @@ def run(dry_run: bool = True) -> dict:
     if dry_run:
         from mock_data import get_mock_social
         raw = get_mock_social()
+    elif raw_posts is not None:
+        _log(f"Step 1/8 — using {len(raw_posts)} posts passed in memory")
+        # Normalize the incoming posts (map raw post fields to pipeline items format)
+        from connectors.threads import _to_item
+        raw = [_to_item(p) for p in raw_posts]
     else:
         # Facebook Graph API is bypassed due to API auth/request errors (400 Bad Request).
         # We only crawl from Threads for the social media dataset.
@@ -70,6 +76,36 @@ def run(dry_run: bool = True) -> dict:
     _log("Step 3/8 — filtering negative posts (PhoBERT)...")
     items = filter_negative(items)
     _log(f"Step 3/8 — {len(items)} negative posts kept")
+
+    if not dry_run:
+        from datetime import datetime
+        from main import SessionLocal, Post
+        db = SessionLocal()
+        try:
+            # Save negative posts to 'posts' table
+            for it in items:
+                post_id = it.get("id")
+                exists = db.query(Post).filter(Post.post_hash_id == post_id).first()
+                if not exists:
+                    post = Post(
+                        post_hash_id=post_id,
+                        platform=it.get("source", "Threads"),
+                        matched_keyword=it.get("matched_keyword"),
+                        author=it.get("author"),
+                        content=it.get("text"),
+                        posted_at=it.get("timestamp"),
+                        crawled_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        post_url=it.get("post_url"),
+                        images_base64=it.get("images", [])
+                    )
+                    db.add(post)
+            db.commit()
+            _log("Saved negative posts to database.")
+        except Exception as e:
+            db.rollback()
+            _log(f"WARNING — Failed to save negative posts to database: {e}")
+        finally:
+            db.close()
 
     if not items:
         _log("No negative posts found — writing empty report.")
