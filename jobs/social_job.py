@@ -29,6 +29,26 @@ from report.generator import generate_report, save_report
 from report.guardrails import check_report
 
 
+def _parse_dt(value) -> "datetime | None":
+    """Safely parse a posted_at value (string or datetime) into a datetime object.
+    Returns None if unparseable (e.g. 'Unknown').
+    """
+    from datetime import datetime as _dt
+    if value is None:
+        return None
+    if isinstance(value, _dt):
+        return value
+    s = str(value).strip()
+    if not s or s.lower() == "unknown":
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+        try:
+            return _dt.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def run(dry_run: bool = True, raw_posts: list[dict] | None = None) -> dict:
     """
     Run the Social Media complaint pipeline.
@@ -93,8 +113,8 @@ def run(dry_run: bool = True, raw_posts: list[dict] | None = None) -> dict:
                         matched_keyword=it.get("matched_keyword"),
                         author=it.get("author"),
                         content=it.get("text"),
-                        posted_at=it.get("timestamp"),
-                        crawled_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        posted_at=_parse_dt(it.get("timestamp")),
+                        crawled_at=datetime.utcnow(),
                         post_url=it.get("post_url"),
                         images_base64=it.get("images", [])
                     )
@@ -108,21 +128,44 @@ def run(dry_run: bool = True, raw_posts: list[dict] | None = None) -> dict:
             db.close()
 
     if not items:
-        _log("No negative posts found — writing empty report.")
+        _log("No negative posts found — nothing saved to DB.")
+        return {"issues": 0, "mentions": 0}
+
+    total_mentions = sum(item.get("mentions", 1) for item in items)
+    _log(f"Done. {len(items)} negative post(s) saved to DB. Trigger report generation from UI.")
+    return {"issues": len(items), "mentions": total_mentions}
+
+
+def run_report_only(raw_posts: list[dict]) -> dict:
+    """
+    Run report-generation pipeline on a pre-fetched list of posts from the DB.
+    Skips crawl / preprocess / sentiment steps — starts from step 4 (image analysis).
+
+    Args:
+        raw_posts: list of post dicts (already negative-filtered, stored in posts table)
+
+    Returns:
+        {"report_path": str, "issues": int, "mentions": int}
+    """
+    _log = lambda msg: print(f"[ReportOnly] {msg}")
+
+    # Normalise to pipeline item format
+    from connectors.threads import _to_item
+    items = [_to_item(p) for p in raw_posts]
+    _log(f"{len(items)} posts loaded for report generation")
+
+    if not items:
+        _log("No posts provided — writing empty report.")
         report = generate_report([], job_name="Social Media")
         path = save_report(report, "Social Media")
         return {"report_path": str(path), "issues": 0, "mentions": 0}
 
-    # ── Step 4: Load sample images (once per job run) ─────────────────────
-    _log("Step 4/8 — loading reference sample images...")
+    # ── Step 4: Load sample images ────────────────────────────────────────
+    _log("Step 4 — loading reference sample images...")
     samples = load_sample_images()
-    if samples:
-        _log(f"Step 4/8 — {len(samples)} sample image(s) loaded")
-    else:
-        _log("Step 4/8 — no sample images found (add to sample_images/<Domain>/)")
 
-    # ── Step 5: Extract issues (with image analysis for image posts) ───────
-    _log("Step 5/8 — extracting issues (LLM)...")
+    # ── Step 5: Extract issues ────────────────────────────────────────────
+    _log("Step 5 — extracting issues (LLM)...")
     for item in items:
         image_desc = ""
         if item.get("images"):
@@ -130,31 +173,24 @@ def run(dry_run: bool = True, raw_posts: list[dict] | None = None) -> dict:
                 analysis = analyze_image(item["images"][0], samples)
                 image_desc = analysis.get("description", "")
                 item["image_analysis"] = analysis
-                _log(f"  {item['id']}: image → {image_desc[:60]}")
             except Exception as e:
                 _log(f"  {item['id']}: image analysis failed — {e}")
-
         item["extracted_issue"] = extract_issue(item["text"], image_description=image_desc)
         _log(f"  {item['id']}: {item['extracted_issue']}")
-    _log("Step 5/8 — done")
 
     # ── Step 6: Classify ──────────────────────────────────────────────────
-    _log("Step 6/8 — classifying domain & segment (LLM)...")
+    _log("Step 6 — classifying domain & segment (LLM)...")
     for item in items:
-        item["domain"]  = classify_domain(item["extracted_issue"])
+        item["domain"] = classify_domain(item["extracted_issue"])
         item["segment"] = classify_segment(item["extracted_issue"], item["domain"])
-        _log(f"  {item['id']}: {item['domain']} / {item['segment']}")
-    _log("Step 6/8 — done")
 
     # ── Step 7: Group ─────────────────────────────────────────────────────
-    _log("Step 7/8 — grouping similar issues (embeddings)...")
+    _log("Step 7 — grouping similar issues...")
     items = group_similar(items)
-    _log(f"Step 7/8 — {len(items)} unique issue group(s)")
-    for g in items:
-        _log(f"  [{g['mentions']} mention(s)] {g['extracted_issue']}")
+    _log(f"Step 7 — {len(items)} unique issue group(s)")
 
     # ── Step 8: Report ────────────────────────────────────────────────────
-    _log("Step 8/8 — generating report (KB search + LLM)...")
+    _log("Step 8 — generating report (KB search + LLM)...")
     report = generate_report(items, job_name="Social Media")
 
     guardrail = check_report(report, items)
@@ -162,9 +198,8 @@ def run(dry_run: bool = True, raw_posts: list[dict] | None = None) -> dict:
         _log(f"  WARNING — guardrail issues: {guardrail['issues']}")
 
     path = save_report(report, "Social Media")
-    _log(f"Step 8/8 — report saved: {path}")
+    _log(f"Step 8 — report saved: {path}")
 
-    # Index issues for the agentic Q&A store (best-effort — never block report delivery).
     try:
         from knowledge_base.issues_store import index_issues
         n = index_issues(items, job_name="Social Media")

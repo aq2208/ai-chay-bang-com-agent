@@ -420,11 +420,6 @@ async def _run(keywords: list[str], scroll_times: int, max_age_hours: int) -> li
     deduped = len(unique)
     duplicate_removed = total_raw - deduped
     print(f"🧮 Stats: total raw records {total_raw}, duplicates removed {duplicate_removed}, unique kept {deduped}")
-    print("🔗 Post URLs kept (for testing):")
-    for r in unique:
-        url = r.get("post_url")
-        if url:
-            print(f"   {url}")
     # ---- Removed posts ----
     if removed_posts:
         print("🚮 Removed post URLs with reasons (for testing):")

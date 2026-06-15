@@ -65,19 +65,16 @@ class CrawlHistory(Base):
     finished_at = Column(DateTime, nullable=True)
     triggered_by = Column(String(100), nullable=True)
     error_message = Column(Text, nullable=True)
-    
-    reports = relationship("AIReport", back_populates="crawl", cascade="all, delete-orphan")
 
 
 class AIReport(Base):
     __tablename__ = "ai_reports"
     id = Column(Integer, primary_key=True, index=True)
-    crawl_id = Column(Integer, ForeignKey("crawl_history.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     report_type = Column(String(50), nullable=False)  # 'jira_report', 'social_report', 'unified'
     content = Column(Text, nullable=False)
-    
-    crawl = relationship("CrawlHistory", back_populates="reports")
+    start_data_time = Column(DateTime, nullable=True)
+    end_data_time = Column(DateTime, nullable=True)
 
 
 class RawPost(Base):
@@ -92,8 +89,8 @@ class Post(Base):
     matched_keyword = Column(String(200), nullable=True)
     author = Column(String(200), nullable=True)
     content = Column(Text, nullable=True)
-    posted_at = Column(String(50), nullable=True)
-    crawled_at = Column(String(50), nullable=True)
+    posted_at = Column(DateTime, nullable=True)
+    crawled_at = Column(DateTime, nullable=True)
     post_url = Column(String(500), nullable=True)
     images_base64 = Column(JSON, nullable=True)
 
@@ -256,29 +253,11 @@ def _run_job(name: str, dry_run: bool, triggered_by: str = "manual", crawl_id: i
         else:
             result = jira_job.run(dry_run=dry_run)
         
-        # Read the report content if report_path exists
-        report_content = ""
-        report_path = result.get("report_path")
-        if report_path and os.path.exists(report_path):
-            with open(report_path, "r", encoding="utf-8") as f:
-                report_content = f.read()
-        
         crawl.status = "done"
         crawl.finished_at = datetime.utcnow()
         if result and result.get("issues") == 0:
             crawl.error_message = "no post at current"
-        
-        if report_content:
-            ai_report = AIReport(
-                crawl_id=crawl.id,
-                created_at=datetime.utcnow(),
-                report_type=f"{name}_report",
-                content=report_content
-            )
-            db.add(ai_report)
-            print(f"[crawler] Job '{name}' finished and AI report saved to database.")
-        else:
-            print(f"[crawler] Job '{name}' finished, no report path found.")
+        print(f"[crawler] Job '{name}' finished. Posts saved to DB, report generation skipped.")
             
         db.commit()
         broadcast_status_sync()
@@ -396,7 +375,7 @@ def run_jira(background_tasks: BackgroundTasks, dry_run: bool = True, triggered_
 
 
 @api_app.post("/run/social", tags=["jobs"])
-def run_social(background_tasks: BackgroundTasks, dry_run: bool = True, triggered_by: str = "manual_right_btn"):
+def run_social(background_tasks: BackgroundTasks, dry_run: bool = True, triggered_by: str = "destroy_social_button"):
     db = SessionLocal()
     try:
         active = db.query(CrawlHistory).filter(CrawlHistory.status == "running").first()
@@ -444,11 +423,11 @@ def run_social_callback(
 ):
     db = SessionLocal()
     try:
-        # Find the active social crawl running record triggered by FE (manual_right_btn)
+        # Find the active social crawl running record triggered by FE (destroy_social_button)
         active = db.query(CrawlHistory).filter(
             CrawlHistory.job_type == "social",
             CrawlHistory.status == "running",
-            CrawlHistory.triggered_by == "manual_right_btn"
+            CrawlHistory.triggered_by == "destroy_social_button"
         ).order_by(CrawlHistory.id.desc()).first()
         
         # If not found, look for any active social running record
@@ -528,12 +507,116 @@ def get_latest_report():
         return {
             "report": {
                 "id": report.id,
-                "crawl_id": report.crawl_id,
                 "created_at": report.created_at.isoformat() + "Z" if report.created_at else None,
                 "report_type": report.report_type,
-                "content": report.content
+                "content": report.content,
+                "start_data_time": report.start_data_time.isoformat() + "Z" if report.start_data_time else None,
+                "end_data_time": report.end_data_time.isoformat() + "Z" if report.end_data_time else None,
             }
         }
+    finally:
+        db.close()
+
+
+@api_app.post("/api/reports/generate", tags=["api"])
+def generate_report_from_db(
+    background_tasks: BackgroundTasks,
+    payload: dict = Body(...)
+):
+    """
+    Generate a new AI report from posts stored in DB within a given time range.
+    Accepts: { "start_data_time": "2026-06-01T00:00:00", "end_data_time": "2026-06-15T23:59:59" }
+    """
+    start_str = payload.get("start_data_time")
+    end_str = payload.get("end_data_time")
+
+    if not start_str or not end_str:
+        raise HTTPException(status_code=400, detail="Thiếu start_data_time hoặc end_data_time.")
+
+    try:
+        start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00")).replace(tzinfo=None)
+        end_dt = datetime.fromisoformat(end_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Định dạng thời gian không hợp lệ: {e}")
+
+    if start_dt >= end_dt:
+        raise HTTPException(status_code=400, detail="start_data_time phải trước end_data_time.")
+
+    db = SessionLocal()
+    try:
+        posts = db.query(Post).filter(
+            Post.crawled_at >= start_dt,
+            Post.crawled_at <= end_dt
+        ).all()
+
+        if not posts:
+            return {"message": "Không có bài đăng nào trong khoảng thời gian này.", "count": 0}
+
+        raw_posts = [
+            {
+                "id": p.post_hash_id,
+                "post_hash_id": p.post_hash_id,
+                "platform": p.platform,
+                "matched_keyword": p.matched_keyword,
+                "author": p.author,
+                "content": p.content,
+                "posted_at": p.posted_at.isoformat() if p.posted_at else None,
+                "crawled_at": p.crawled_at.isoformat() if p.crawled_at else None,
+                "post_url": p.post_url,
+                "images_base64": p.images_base64 or [],
+            }
+            for p in posts
+        ]
+    finally:
+        db.close()
+
+    background_tasks.add_task(
+        _run_report_from_posts,
+        raw_posts=raw_posts,
+        start_data_time=start_dt,
+        end_data_time=end_dt,
+    )
+    return {
+        "message": f"Bắt đầu tạo báo cáo từ {len(raw_posts)} bài đăng trong khoảng thời gian đã chọn.",
+        "count": len(raw_posts),
+        "status": "started"
+    }
+
+
+def _run_report_from_posts(
+    raw_posts: list[dict],
+    start_data_time: datetime,
+    end_data_time: datetime,
+) -> None:
+    """Background worker: runs the report-generation pipeline on pre-fetched posts and saves to DB."""
+    from jobs.social_job import run_report_only
+
+    db = SessionLocal()
+    try:
+        print(f"[report] Generating report from {len(raw_posts)} posts ({start_data_time} → {end_data_time})...")
+        result = run_report_only(raw_posts=raw_posts)
+        report_content = ""
+        report_path = result.get("report_path")
+        if report_path and os.path.exists(report_path):
+            with open(report_path, "r", encoding="utf-8") as f:
+                report_content = f.read()
+
+        if report_content:
+            ai_report = AIReport(
+                created_at=datetime.utcnow(),
+                report_type="social_report",
+                content=report_content,
+                start_data_time=start_data_time,
+                end_data_time=end_data_time,
+            )
+            db.add(ai_report)
+            db.commit()
+            print(f"[report] Report saved to database (id={ai_report.id}).")
+        else:
+            print("[report] No report content generated.")
+    except Exception as exc:
+        db.rollback()
+        print(f"[report] Report generation failed: {exc}")
     finally:
         db.close()
 
@@ -606,6 +689,91 @@ def _query(payload: dict) -> dict:
 
 
 # ── AgentBase wiring ────────────────────────────────────────────────────────
+def _migrate_posts_datetime():
+    """One-time idempotent migration: convert posts.posted_at and posts.crawled_at
+    from VARCHAR to TIMESTAMP (DateTime). Safe to run on every startup."""
+    from sqlalchemy import text, inspect as sa_inspect
+    inspector = sa_inspect(engine)
+    try:
+        cols = {c["name"]: c for c in inspector.get_columns("posts")}
+    except Exception:
+        return  # table doesn't exist yet — create_all will handle it
+
+    if DATABASE_URL.startswith("sqlite"):
+        # SQLite doesn't support ALTER COLUMN — migrate via new column + copy + rename
+        for col in ("posted_at", "crawled_at"):
+            col_info = cols.get(col)
+            if col_info is None:
+                continue
+            # Check if already a DATETIME type (SQLAlchemy reports it as 'DATETIME')
+            col_type = str(col_info["type"]).upper()
+            if "DATETIME" in col_type or "TIMESTAMP" in col_type:
+                continue  # already migrated
+            print(f"[migrate] Converting posts.{col} from VARCHAR to DATETIME (SQLite)...")
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE posts ADD COLUMN {col}_dt DATETIME"))
+                # Copy: try parsing 'YYYY-MM-DD HH:MM:SS' strings; NULL-ify anything unparseable
+                conn.execute(text(
+                    f"UPDATE posts SET {col}_dt = "
+                    f"CASE WHEN {col} IS NULL OR LOWER({col}) = 'unknown' OR {col} = '' THEN NULL "
+                    f"ELSE DATETIME({col}) END"
+                ))
+                # SQLite can't drop columns before 3.35 — just leave old col, rename new one
+                # We work around by recreating the table
+                # Instead: drop old col if supported, else keep both (SQLAlchemy reads the new one)
+                try:
+                    conn.execute(text(f"ALTER TABLE posts DROP COLUMN {col}"))
+                    conn.execute(text(f"ALTER TABLE posts RENAME COLUMN {col}_dt TO {col}"))
+                    print(f"[migrate] posts.{col} migrated successfully (with DROP COLUMN).")
+                except Exception:
+                    # SQLite < 3.35 — keep _dt col; rename model col below won't work,
+                    # so we need the full table-rebuild approach
+                    print(f"[migrate] SQLite < 3.35 detected for posts.{col}; rebuilding table...")
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS posts_new (
+                            post_hash_id VARCHAR(100) PRIMARY KEY,
+                            platform VARCHAR(50) NOT NULL,
+                            matched_keyword VARCHAR(200),
+                            author VARCHAR(200),
+                            content TEXT,
+                            posted_at DATETIME,
+                            crawled_at DATETIME,
+                            post_url VARCHAR(500),
+                            images_base64 JSON
+                        )
+                    """))
+                    conn.execute(text("""
+                        INSERT INTO posts_new
+                        SELECT post_hash_id, platform, matched_keyword, author, content,
+                               CASE WHEN posted_at IS NULL OR LOWER(posted_at)='unknown' OR posted_at='' THEN NULL
+                                    ELSE DATETIME(posted_at) END,
+                               CASE WHEN crawled_at IS NULL OR LOWER(crawled_at)='unknown' OR crawled_at='' THEN NULL
+                                    ELSE DATETIME(crawled_at) END,
+                               post_url, images_base64
+                        FROM posts
+                    """))
+                    conn.execute(text("DROP TABLE posts"))
+                    conn.execute(text("ALTER TABLE posts_new RENAME TO posts"))
+                    print("[migrate] posts table rebuilt with DATETIME columns.")
+                    break  # rebuilt whole table, no need to loop more cols
+    else:
+        # PostgreSQL: ALTER COLUMN ... USING
+        for col in ("posted_at", "crawled_at"):
+            col_info = cols.get(col)
+            if col_info is None:
+                continue
+            col_type = str(col_info["type"]).upper()
+            if "TIMESTAMP" in col_type or "DATETIME" in col_type:
+                continue
+            print(f"[migrate] Converting posts.{col} from VARCHAR to TIMESTAMP (PostgreSQL)...")
+            with engine.begin() as conn:
+                conn.execute(text(
+                    f"ALTER TABLE posts ALTER COLUMN {col} TYPE TIMESTAMP "
+                    f"USING CASE WHEN {col} IS NULL OR LOWER({col}) = 'unknown' OR {col} = '' "
+                    f"THEN NULL ELSE {col}::TIMESTAMP END"
+                ))
+                print(f"[migrate] posts.{col} migrated successfully.")
+
 try:
     from contextlib import asynccontextmanager
     from greennode_agentbase import GreenNodeAgentBaseApp, RequestContext, PingStatus
@@ -615,6 +783,12 @@ try:
         # Automatically initialize SQLite or PostgreSQL schemas
         Base.metadata.create_all(bind=engine)
         print("[database] Database tables verified/created successfully.")
+
+        # Migrate posts datetime columns from VARCHAR → DATETIME if needed
+        try:
+            _migrate_posts_datetime()
+        except Exception as e:
+            print(f"[database] WARNING: datetime migration failed: {e}")
         
         # Store event loop reference
         global main_loop

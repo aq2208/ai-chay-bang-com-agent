@@ -25,10 +25,12 @@
     </script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- Marked.js (Markdown renderer) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css?v=1.0.4">
+    <link rel="stylesheet" href="style.css?v=1.0.5">
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen overflow-x-hidden relative"
       x-data="appState()"
@@ -183,8 +185,68 @@
 
         <!-- ==================== TAB 2: DASHBOARD ==================== -->
         <div x-show="currentHash === '#dashboard'" x-cloak class="space-y-6">
+
+            <!-- Date Range Report Generator -->
             <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
-                <h2 class="text-2xl font-orbitron font-bold text-cyan-400 tracking-wider mb-4">COMPLAINT ANALYTICS DASHBOARD</h2>
+                <h2 class="text-2xl font-orbitron font-bold text-cyan-400 tracking-wider mb-1">GENERATE AI REPORT</h2>
+                <p class="text-slate-400 text-xs mb-5">Chọn khoảng thời gian để tổng hợp báo cáo từ dữ liệu đã crawl trong Database.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                    <!-- Start datetime -->
+                    <div class="flex flex-col space-y-1">
+                        <label for="start-data-time" class="text-xs font-orbitron text-slate-400 uppercase tracking-widest">Start Data Time</label>
+                        <input id="start-data-time" type="datetime-local"
+                               x-model="reportStartTime"
+                               class="bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/40 transition-all"
+                        />
+                    </div>
+                    <!-- End datetime -->
+                    <div class="flex flex-col space-y-1">
+                        <label for="end-data-time" class="text-xs font-orbitron text-slate-400 uppercase tracking-widest">End Data Time</label>
+                        <input id="end-data-time" type="datetime-local"
+                               x-model="reportEndTime"
+                               class="bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/40 transition-all"
+                        />
+                    </div>
+                </div>
+
+                <button id="btn-generate-report"
+                        @click="generateReport()"
+                        :disabled="isGeneratingReport"
+                        class="w-full md:w-auto px-8 py-3 rounded-lg font-orbitron font-bold text-sm tracking-widest transition-all duration-200 border"
+                        :class="isGeneratingReport
+                            ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                            : 'bg-cyan-950/50 border-cyan-600 text-cyan-300 hover:bg-cyan-900/60 hover:shadow-cyan active:scale-95 cursor-pointer'"
+                >
+                    <span x-show="!isGeneratingReport">⚡ GENERATE REPORT</span>
+                    <span x-show="isGeneratingReport" class="flex items-center space-x-2">
+                        <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>GENERATING…</span>
+                    </span>
+                </button>
+
+                <!-- Generation status message -->
+                <div x-show="reportGenMessage" x-cloak class="mt-4 px-4 py-2.5 rounded-lg border text-xs font-mono"
+                     :class="reportGenError
+                         ? 'bg-red-950/30 border-red-800/40 text-red-400'
+                         : 'bg-green-950/30 border-green-800/40 text-green-400'">
+                    <span x-text="reportGenMessage"></span>
+                </div>
+            </div>
+
+            <!-- Latest Report Display -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-orbitron font-bold text-cyan-400 tracking-wider">LATEST REPORT</h2>
+                    <button @click="fetchHistoryAndReports()"
+                            class="px-3 py-1.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 font-orbitron text-xs tracking-wider transition-all cursor-pointer"
+                            style="box-shadow: none !important; transform: none !important;">
+                        ↺ REFRESH
+                    </button>
+                </div>
                 
                 <template x-if="!latestReport">
                     <div class="h-64 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-lg">
@@ -194,19 +256,26 @@
                 </template>
 
                 <template x-if="latestReport">
-                    <div class="space-y-6">
-                        <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <div class="space-y-4">
+                        <div class="flex flex-wrap gap-3 items-center border-b border-slate-800 pb-4">
                             <div>
-                                <span class="text-xs text-slate-400">Lần cuối cập nhật:</span>
-                                <h3 class="text-sm font-mono text-cyan-300 mt-0.5" x-text="formatDate(latestReport.created_at)"></h3>
+                                <span class="text-xs text-slate-400">Tạo lúc:</span>
+                                <span class="text-sm font-mono text-cyan-300 ml-1" x-text="formatDate(latestReport.created_at)"></span>
                             </div>
-                            <span class="px-3 py-1 bg-cyan-950 text-cyan-400 rounded-full font-mono text-xs border border-cyan-800/40" x-text="latestReport.report_type.toUpperCase()"></span>
+                            <template x-if="latestReport.start_data_time">
+                                <div class="flex items-center space-x-2 text-xs font-mono text-slate-400">
+                                    <span class="px-2 py-0.5 bg-slate-800 rounded border border-slate-700">DATA</span>
+                                    <span x-text="formatDate(latestReport.start_data_time)"></span>
+                                    <span>→</span>
+                                    <span x-text="formatDate(latestReport.end_data_time)"></span>
+                                </div>
+                            </template>
+                            <span class="px-3 py-1 bg-cyan-950 text-cyan-400 rounded-full font-mono text-xs border border-cyan-800/40 ml-auto" x-text="latestReport.report_type.toUpperCase()"></span>
                         </div>
 
                         <!-- Main report display -->
-                        <div class="bg-slate-950/70 border border-slate-800/80 rounded-lg p-6 font-mono text-sm leading-relaxed overflow-x-auto text-slate-300 max-h-[500px] overflow-y-auto">
-                            <!-- Show Markdown report directly -->
-                            <div class="prose prose-invert prose-cyan max-w-none whitespace-pre-wrap" x-text="latestReport.content"></div>
+                        <div class="md-report-container bg-slate-950/70 border border-slate-800/80 rounded-lg p-6 font-mono text-sm leading-relaxed overflow-x-auto text-slate-300 max-h-[500px] overflow-y-auto custom-scrollbar">
+                            <div class="md-report" x-html="renderMarkdown(latestReport.content)"></div>
                         </div>
                     </div>
                 </template>
@@ -334,6 +403,6 @@
     </div>
 
     <!-- JS Logic Scripts -->
-    <script src="app.js?v=1.0.4"></script>
+    <script src="app.js?v=1.0.5"></script>
 </body>
 </html>
