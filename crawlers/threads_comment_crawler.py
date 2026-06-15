@@ -161,8 +161,34 @@ async def _crawl_comments_for_thread(
                     continue
             return new_count
 
+        async def _log_articles_stats(prefix: str):
+            articles = await page.locator('[role="article"]').all()
+            if not articles:
+                articles = await page.locator('div[data-pressable-container="true"]').all()
+            
+            times = []
+            for art in articles:
+                try:
+                    time_el = art.locator("time")
+                    if await time_el.count() > 0:
+                        dt_str = await time_el.first.get_attribute("datetime")
+                        if dt_str:
+                            from dateutil import parser
+                            times.append(parser.isoparse(dt_str))
+                except Exception:
+                    continue
+            
+            count = len(articles)
+            if times:
+                furthest = min(times).strftime("%Y-%m-%d %H:%M:%S")
+                nearest = max(times).strftime("%Y-%m-%d %H:%M:%S")
+                print(f"    {prefix} - found {count} comments, furthest: {furthest}, nearest: {nearest}")
+            else:
+                print(f"    {prefix} - found {count} comments, no timestamps found")
+
         await _bypass_login_modal()
         await _get_new_comments_count()
+        await _log_articles_stats("First load")
 
         consecutive_empty_scrolls = 0
         for scroll_idx in range(1, scroll_times + 1):
@@ -171,6 +197,7 @@ async def _crawl_comments_for_thread(
             await page.wait_for_timeout(2000)
             
             new_found = await _get_new_comments_count()
+            await _log_articles_stats(f"Scroll {scroll_idx}")
             if new_found == 0:
                 consecutive_empty_scrolls += 1
             else:
