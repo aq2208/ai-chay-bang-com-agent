@@ -11,4 +11,5 @@ nest-asyncio        # only needed when running inside a notebook (Colab)
 pydantic            # SocialPost schema (also a core dep)
 python-dotenv
 requests
+Pillow              # image resize/compress before base64 storage
 
