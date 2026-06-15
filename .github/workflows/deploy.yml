@@ -1,0 +1,68 @@
+name: Build and Deploy Agent
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/*.sh
+          if [ -d scripts/lib ]; then chmod +x scripts/lib/*.sh || true; fi
+
+      - name: Configure GreenNode Credentials
+        run: |
+          echo '{"client_id": "${{ secrets.GREENNODE_CLIENT_ID }}", "client_secret": "${{ secrets.GREENNODE_CLIENT_SECRET }}"}' > .greennode.json
+
+      - name: Restore Environment Variables
+        run: |
+          echo "${{ secrets.GREENNODE_ENV_FILE }}" > .env
+
+      - name: Docker Login to VCR
+        run: |
+          bash scripts/cr.sh credentials docker-login
+
+      - name: Build and Push Docker Image
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            IMAGE_TAG="${{ github.ref_name }}"
+          else
+            IMAGE_TAG="v${{ github.run_number }}"
+          fi
+          IMAGE_NAME="vcr.vngcloud.vn/111480-abp111948/ai-chay-bang-com-agent:$IMAGE_TAG"
+          echo "Building image $IMAGE_NAME..."
+          docker build --platform linux/amd64 --build-arg HF_TOKEN="${{ secrets.HF_TOKEN }}" -t $IMAGE_NAME .
+          echo "Pushing image to VCR..."
+          docker push $IMAGE_NAME
+
+      - name: Deploy Update to GreenNode Runtime
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            IMAGE_TAG="${{ github.ref_name }}"
+          else
+            IMAGE_TAG="v${{ github.run_number }}"
+          fi
+          IMAGE_NAME="vcr.vngcloud.vn/111480-abp111948/ai-chay-bang-com-agent:$IMAGE_TAG"
+          echo "Deploying version $IMAGE_NAME to runtime-036467c8-dcc5-4479-a6a4-85796af3f47c..."
+          bash scripts/runtime.sh update runtime-036467c8-dcc5-4479-a6a4-85796af3f47c \
+            --image "$IMAGE_NAME" \
+            --flavor "runtime-s2-general-4x8" \
+            --env-file .env \
+            --from-cr
