@@ -1,34 +1,5 @@
 """
-Threads crawler — Playwright public keyword search → bronze JSONL.
-
-Runs OFFLINE (Colab / a worker / locally), NOT inside the AgentBase runtime: it drives a headless
-Chromium browser, which is too heavy and easily blocked from datacenter IPs. It writes raw records to
-data/raw/threads_<ts>.jsonl; the agent's connectors/threads.py reads that bronze file.
-
-Raw record schema (SocialPost) — kept rich on purpose; the connector normalizes on read:
-    post_hash_id, platform, matched_keyword, author, content, posted_at, crawled_at, post_url, images_base64
-
-Input:
-    None (reads crawler parameters dynamically from configuration).
-
-Output:
-    Raw post records saved to data/raw/ as `threads_<YYYYMMDD_HHMM>.jsonl`.
-
-Configs read from config.py:
-    - KEYWORDS: List of keywords/search queries to crawl on Threads.
-    - DAYS_BACK: Time window in days to fetch posts (used to calculate max age filter).
-    - SCROLL_TIMES: Number of times to scroll down to load search results.
-
-Run:
-    # one-off install (not part of the agent image):
-    pip install -r requirements-crawler.txt && python -m playwright install chromium
-    python crawlers/threads_crawler.py            # crawls config.KEYWORDS, writes bronze
-
-Run:
-    python -m crawlers.threads_crawler
-
-
-In Colab: import and call crawl(); a running event loop is handled automatically.
+Threads crawler (DEBUG) — Playwright public keyword search → bronze JSONL.
 """
 
 from __future__ import annotations
@@ -47,8 +18,11 @@ from dotenv import load_dotenv
 from playwright.async_api import async_playwright
 from pydantic import BaseModel, Field
 
-from config import KEYWORDS, DAYS_BACK, SCROLL_TIMES
 from crawlers import bronze
+
+# Hardcoded configurations for debugging
+KEYWORDS = ["zalopay"]
+SCROLL_TIMES = 20
 
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -66,6 +40,13 @@ class SocialPost(BaseModel):
     crawled_at: str = Field(description="When we crawled it")
     post_url: str = Field(default="", description="Original post URL or fallback profile link")
     images_base64: list = Field(default=[], description="Attached images as base64 data URIs")
+
+
+def printCustom(action_name: str, new_posts: list[dict]):
+    print(f"\n--- {action_name} ---")
+    print(f"found {len(new_posts)} post(s):")
+    for i, post in enumerate(new_posts, 1):
+        print(f"[{i}] {post['time']} {post['url']}")
 
 
 async def _fetch_and_encode_image(session: aiohttp.ClientSession, image_url: str) -> str | None:
@@ -91,7 +72,80 @@ async def _crawl_keyword(
     posts: list[dict] = []
     page = await context.new_page()
     print(f"\n🔍 [Search] keyword: '{keyword}'...")
+
     try:
+        await page.goto(search_url, wait_until="domcontentloaded")
+        await page.wait_for_timeout(6000)
+
+        # Track already printed keys to show only newly found posts at each action
+        printed_keys = set()
+
+        # Helper to extract posts currently in DOM
+        async def _extract_current_posts(articles_list) -> list[dict]:
+            extracted = []
+            for art in articles_list:
+                try:
+                    # ── author ──
+                    art_author = ""
+                    try:
+                        lines = [ln.strip() for ln in (await art.inner_text()).split("\n") if ln.strip()]
+                        if len(lines) >= 2:
+                            art_author = lines[0]
+                            if art_author.lower() in ("follow", "theo dõi") and len(lines) > 2:
+                                art_author = lines[1]
+                    except Exception:
+                        pass
+
+                    # ── URL ──
+                    art_url = ""
+                    try:
+                        post_link = art.locator('a[href*="/post/"]')
+                        if await post_link.count() > 0:
+                            href = await post_link.first.get_attribute("href")
+                            if href:
+                                if href.startswith("/"):
+                                    art_url = f"https://www.threads.net{href}"
+                                else:
+                                    art_url = href
+                    except Exception:
+                        pass
+
+                    if not art_url and art_author:
+                        clean_author = art_author.strip().lstrip("@")
+                        if clean_author:
+                            art_url = f"https://www.threads.net/@{clean_author}"
+                    if not art_url:
+                        art_url = "N/A"
+
+                    # ── Time ──
+                    time_formatted = "Unknown"
+                    time_el = art.locator("time")
+                    if await time_el.count() > 0:
+                        dt_str = await time_el.first.get_attribute("datetime")
+                        if dt_str:
+                            try:
+                                post_time = parser.isoparse(dt_str)
+                                time_formatted = post_time.strftime("%d/%m/%Y %Hh%M")
+                            except Exception:
+                                pass
+
+                    # ── Content for dedup key ──
+                    content_str = ""
+                    try:
+                        content_str = await art.inner_text()
+                    except Exception:
+                        pass
+
+                    key = art_url if art_url != "N/A" else f"{art_author}_{time_formatted}_{content_str[:50]}"
+                    extracted.append({
+                        "url": art_url,
+                        "time": time_formatted,
+                        "key": key
+                    })
+                except Exception:
+                    continue
+            return extracted
+
         async def _bypass_login_modal():
             try:
                 await page.evaluate("""() => {
@@ -127,45 +181,53 @@ async def _crawl_keyword(
             except Exception as e:
                 print(f"  [!] bypass login modal failed: {e}")
 
-        # Track keys to count new posts during scrolling
-        seen_keys = set()
-        
-        async def _get_new_posts_count() -> int:
-            articles = await page.locator('[role="article"]').all()
-            if not articles:
-                articles = await page.locator('div[data-pressable-container="true"]').all()
-            
-            new_count = 0
-            for art in articles:
-                try:
-                    text = await art.inner_text()
-                    h = hashlib.md5(text.encode("utf-8")).hexdigest()
-                    if h not in seen_keys:
-                        seen_keys.add(h)
-                        new_count += 1
-                except Exception:
-                    continue
-            return new_count
-
+        # First search: get current articles
         await _bypass_login_modal()
-        await _get_new_posts_count()
+        articles = await page.locator('[role="article"]').all()
+        if not articles:
+            articles = await page.locator('div[data-pressable-container="true"]').all()
+
+        current_posts = await _extract_current_posts(articles)
+        new_posts = []
+        for p in current_posts:
+            if p["key"] not in printed_keys:
+                printed_keys.add(p["key"])
+                new_posts.append(p)
+        printCustom("First Search", new_posts)
+        await page.screenshot(path="threads_first_search.png")
 
         consecutive_empty_scrolls = 0
+
+        # Scrolls
         for scroll_idx in range(1, scroll_times + 1):
             await _bypass_login_modal()
             await page.mouse.wheel(0, 3000)
             await page.wait_for_timeout(2500)
-            
-            new_found = await _get_new_posts_count()
-            if new_found == 0:
+
+            articles = await page.locator('[role="article"]').all()
+            if not articles:
+                articles = await page.locator('div[data-pressable-container="true"]').all()
+
+            current_posts = await _extract_current_posts(articles)
+            new_posts = []
+            for p in current_posts:
+                if p["key"] not in printed_keys:
+                    printed_keys.add(p["key"])
+                    new_posts.append(p)
+            printCustom(f"Scroll {scroll_idx}", new_posts)
+            if scroll_idx in (1, 5, 20):
+                await page.screenshot(path=f"threads_scroll_{scroll_idx}.png")
+
+            if len(new_posts) == 0:
                 consecutive_empty_scrolls += 1
             else:
                 consecutive_empty_scrolls = 0
-                
+
             if consecutive_empty_scrolls >= 2:
-                print(f"    🛑 [{scroll_idx}] 2 consecutive scrolls with 0 new posts. Stopping scroll for keyword '{keyword}'...")
+                print(f"  🛑 [{scroll_idx}] 2 consecutive scrolls with 0 new posts. Stopping scroll for keyword '{keyword}'...")
                 break
 
+        # After scrolling, perform the full extraction logic
         await _bypass_login_modal()
         articles = await page.locator('[role="article"]').all()
         if not articles:
@@ -267,35 +329,32 @@ async def _crawl_keyword(
     return posts
 
 
-async def _run(keywords: list[str], scroll_times: int, max_age_hours: int) -> list[dict]:
-    load_dotenv()
+async def _run(keywords: list[str], scroll_times: int, max_age_hours: int, token: str | None = None) -> list[dict]:
     all_records: list[dict] = []
     async with aiohttp.ClientSession() as session:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
-            
-            storage_state = None
-            env_auth_state = os.getenv("THREADS_AUTH_STATE_JSON")
+            # 1. Load data/auth_state.json if exists
             auth_path = os.path.join("data", "auth_state.json")
-            
-            if env_auth_state:
+            env_auth_state = os.getenv("THREADS_AUTH_STATE_JSON")
+            if env_auth_state and not os.path.exists(auth_path):
                 try:
-                    import json
-                    storage_state = json.loads(env_auth_state)
-                    print("🔑 [Auth] Loaded session from THREADS_AUTH_STATE_JSON environment variable.")
+                    auth_dir = os.path.dirname(auth_path)
+                    if auth_dir:
+                        os.makedirs(auth_dir, exist_ok=True)
+                    with open(auth_path, "w", encoding="utf-8") as f:
+                        f.write(env_auth_state)
+                    print(f"🔑 [Auth] Generated {auth_path} from THREADS_AUTH_STATE_JSON environment variable.")
                 except Exception as e:
-                    print(f"⚠️ [Auth] Failed to parse THREADS_AUTH_STATE_JSON environment variable: {e}")
-            
-            if not storage_state and os.path.exists(auth_path):
-                storage_state = auth_path
-                print(f"🔑 [Auth] Loaded session from storage state file: {auth_path}")
-            
-            if storage_state:
-                context = await browser.new_context(user_agent=_USER_AGENT, storage_state=storage_state)
+                    print(f"⚠️ [Auth] Failed to write THREADS_AUTH_STATE_JSON to file: {e}")
+
+            if os.path.exists(auth_path):
+                context = await browser.new_context(user_agent=_USER_AGENT, storage_state=auth_path)
+                print(f"🔑 [Auth] Loaded session from storage state: {auth_path}")
             else:
                 context = await browser.new_context(user_agent=_USER_AGENT)
-                token = os.getenv("THREADS_SESSION_ID") or os.getenv("THREADS_TOKEN")
                 if token:
+                    # Parse as full cookies header or simple sessionid
                     if "=" in token:
                         cookies = []
                         for pair in token.split(";"):
@@ -325,7 +384,7 @@ async def _run(keywords: list[str], scroll_times: int, max_age_hours: int) -> li
                         await context.add_cookies(cookies)
                         print(f"🔑 [Auth] Added sessionid cookie from THREADS_SESSION_ID / THREADS_TOKEN.")
                 else:
-                    print("🔓 [Auth] No auth state or token found. Proceeding as guest (anonymous search)...")
+                    print(f"🔓 [Auth] No auth state file or token found. Proceeding as guest (anonymous search)...")
 
             for kw in keywords:
                 all_records.extend(await _crawl_keyword(context, session, kw, scroll_times, max_age_hours))
@@ -349,21 +408,24 @@ def crawl(
     save_bronze: bool = True,
 ) -> list[dict]:
     """
-    Crawl Threads for the given keywords (default: config.KEYWORDS), dedup, and (optionally)
+    Crawl Threads for the given keywords (default: KEYWORDS), dedup, and (optionally)
     save a bronze JSONL. Returns the raw SocialPost records.
-
-    Works both as a script (no running loop) and in Colab (running loop → nest_asyncio).
     """
     keywords = keywords or KEYWORDS
     scroll_times = scroll_times if scroll_times is not None else SCROLL_TIMES
-    max_age_hours = max_age_hours if max_age_hours is not None else DAYS_BACK * 24
+    # Accepts all post from history by using a massive max_age_hours (99999999 hours)
+    max_age_hours = max_age_hours if max_age_hours is not None else 99999999
 
     print("=" * 56)
-    print("🚀 Starting Threads Crawler...")
+    print("🚀 Starting Threads Crawler (DEBUG)...")
     print(f"   Keywords:     {keywords}")
     print(f"   Scroll Times: {scroll_times}")
     print(f"   Max Age:      {max_age_hours} hours")
     print("=" * 56)
+
+    # Load token from environment or dotenv
+    load_dotenv()
+    token = os.getenv("THREADS_SESSION_ID") or os.getenv("THREADS_TOKEN")
 
     try:
         loop = asyncio.get_running_loop()
@@ -372,9 +434,9 @@ def crawl(
     if loop and loop.is_running():
         import nest_asyncio
         nest_asyncio.apply()
-        records = loop.run_until_complete(_run(keywords, scroll_times, max_age_hours))
+        records = loop.run_until_complete(_run(keywords, scroll_times, max_age_hours, token))
     else:
-        records = asyncio.run(_run(keywords, scroll_times, max_age_hours))
+        records = asyncio.run(_run(keywords, scroll_times, max_age_hours, token))
 
     print("\n" + "=" * 56)
     print(f"📊 {len(records)} unique post(s) across {len(keywords)} keyword(s)")
@@ -385,8 +447,6 @@ def crawl(
         print(f"💾 bronze saved: {path}")
     print("=" * 56)
 
-    # Set step output for GitHub Actions if environment variable is present
-    import os
     github_output = os.getenv("GITHUB_OUTPUT")
     if github_output:
         try:
