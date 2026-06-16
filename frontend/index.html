@@ -181,7 +181,7 @@
             <!-- Central Control System Terminal -->
             <div class="bg-black/80 border border-slate-800 rounded-lg p-6 max-w-4xl mx-auto shadow-2xl relative overflow-hidden">
                 <div class="absolute top-0 right-0 p-3 flex space-x-2">
-                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse" :class="isProcessing ? 'bg-red-500' : 'bg-green-500'"></span>
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse" :class="isProcessing ? 'bg-red-500' : 'bg-green-500'" style="margin-top: 2px;"></span>
                     <span class="text-[9px] font-mono text-slate-500 uppercase" x-text="isProcessing ? 'CRAWLING ACTIVE' : 'SYSTEM IDLE'">SYSTEM IDLE</span>
                 </div>
                 <h4 class="font-orbitron text-xs text-cyan-400 font-bold uppercase tracking-wider mb-4 border-b border-slate-900 pb-2">COMMAND TERMINAL CONSOLE</h4>

@@ -57,6 +57,13 @@ function appState() {
                 this.appendLog("[SYSTEM DEBUG]: Route transition to " + value);
                 console.log("[SYSTEM DEBUG]: Route transition to " + value);
                 if (value === '#dashboard') {
+                    // Destroy stale chart instance before re-rendering — canvas loses
+                    // its 2D context when hidden via display:none (x-show), so update()
+                    // on the cached instance silently no-ops and hover/tooltips break.
+                    if (this.chart) {
+                        this.chart.destroy();
+                        this.chart = null;
+                    }
                     this.fetchChartData();
                     this.fetchReports();
                 }
@@ -610,6 +617,13 @@ function appState() {
                     plugins: [{
                         id: 'chartLetterSpacing',
                         beforeDraw(chart) {
+                            // 0px for scale/axis tick labels (drawn during this phase)
+                            if (chart.ctx && 'letterSpacing' in chart.ctx) {
+                                chart.ctx.letterSpacing = '0px';
+                            }
+                        },
+                        beforeDatasetsDraw(chart) {
+                            // Restore wide spacing for datasets and legend
                             if (chart.ctx && 'letterSpacing' in chart.ctx) {
                                 chart.ctx.letterSpacing = '2.5px';
                             }
