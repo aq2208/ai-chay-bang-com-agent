@@ -32,8 +32,17 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 COPY .hf_cach[e] /app/.hf_cache/
 
 # Bake the ML models into the image (PhoBERT sentiment + MiniLM embeddings).
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')" \
-    && python -c "from transformers import pipeline; pipeline('text-classification', model='wonrax/phobert-base-vietnamese-sentiment')"
+# Retry up to 3 times with backoff to handle transient HuggingFace network errors.
+RUN for attempt in 1 2 3; do \
+        python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')" && break; \
+        echo "MiniLM download attempt $attempt failed — retrying in 20s..."; sleep 20; \
+        [ $attempt -eq 3 ] && exit 1; \
+    done \
+    && for attempt in 1 2 3; do \
+        python -c "from transformers import pipeline; pipeline('text-classification', model='wonrax/phobert-base-vietnamese-sentiment')" && break; \
+        echo "PhoBERT download attempt $attempt failed — retrying in 20s..."; sleep 20; \
+        [ $attempt -eq 3 ] && exit 1; \
+    done
 
 # App code.
 COPY . .

@@ -8,9 +8,11 @@ openai
 python-dotenv
 
 # ── ML / NLP (baked into the image at build time) ──────────────────────────
-sentence-transformers
-transformers
-torch
+# torch is installed separately in Dockerfile with the CPU-only wheel;
+# do NOT list it here unpinned — pip would re-resolve from PyPI and may
+# upgrade to a CUDA build or a version incompatible with the models below.
+sentence-transformers>=3.0.0,<3.4.0
+transformers>=4.40.0,<4.46.0
 chromadb
 
 
