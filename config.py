@@ -77,7 +77,6 @@ KEYWORDS = [
     "ví zalopay",
     "ví zalo",
     "ví điện tử zalo",
-    "zalo"
 ]
 
 # ── Pipeline Settings ─────────────────────────────────────────────────────
