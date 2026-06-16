@@ -575,6 +575,11 @@
 
             <!-- Modal Footer -->
             <div class="flex items-center justify-between px-6 py-4 border-t border-slate-800 shrink-0">
+                <button @click="closeReportModal()"
+                        class="px-5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 font-orbitron text-xs tracking-wider hover:text-slate-200 transition-all cursor-pointer"
+                        style="box-shadow: none !important; transform: none !important;">
+                    CLOSE
+                </button>
                 <div class="flex items-center gap-2" x-show="!reportModalLoading && reportModalMeta">
                     <!-- Copy MD button -->
                     <button @click="copyReportContent()"
@@ -615,11 +620,6 @@
                         <span x-text="reportShared ? 'LINK COPIED!' : 'SHARE'"></span>
                     </button>
                 </div>
-                <button @click="closeReportModal()"
-                        class="px-5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 font-orbitron text-xs tracking-wider hover:text-slate-200 transition-all cursor-pointer"
-                        style="box-shadow: none !important; transform: none !important;">
-                    CLOSE
-                </button>
             </div>
         </div>
     </div>
