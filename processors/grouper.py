@@ -96,6 +96,23 @@ def group_similar(items: list[dict], threshold: float | None = None) -> list[dic
         rep["mentions"] = len(cluster)
         rep["sources"]  = ", ".join(sorted({c["source"] for c in cluster}))
         rep["ids"]      = [c["id"] for c in cluster]
+        
+        post_urls = []
+        all_images = []
+        for c in cluster:
+            url = c.get("post_url")
+            if url and url not in post_urls:
+                post_urls.append(url)
+            
+            imgs = c.get("images") or []
+            if isinstance(imgs, str):
+                imgs = [imgs]
+            for img in imgs:
+                if img and img not in all_images:
+                    all_images.append(img)
+        
+        rep["post_urls"] = post_urls
+        rep["all_images"] = all_images
         groups.append(rep)
         print(f"[Grouper]   Group finished with {len(cluster)} mentions. IDs: {rep['ids']}")
 

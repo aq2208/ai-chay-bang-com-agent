@@ -747,6 +747,11 @@ def _run_report_from_posts(
         db.close()
 
 
+# Serve Output Static Files (for reports & saved images)
+os.makedirs("output", exist_ok=True)
+api_app.mount("/output", StaticFiles(directory="output"), name="output")
+print("[output] Serving output files from: output/")
+
 # Serve Frontend Static Files
 frontend_dir = Path(__file__).parent / "frontend"
 if frontend_dir.exists():
