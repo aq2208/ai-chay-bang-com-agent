@@ -38,6 +38,12 @@ function appState() {
         reportCopied: false,
         reportShared: false,
 
+        // --- Image Lightbox States ---
+        imgLightboxOpen: false,
+        imgLightboxSrc: '',
+        imgLightboxScale: 1,
+        imgLightboxNaturalW: 0,
+
         // --- Superman Easter Egg State ---
         supermanRunning: false,
 
@@ -65,6 +71,9 @@ function appState() {
 
             // Connect WebSocket for real-time updates
             this.initWebSocket();
+
+            // Configure marked renderers once at startup
+            this.initMarkdown();
 
             // Deep-link: auto-open report modal if ?report_id=N or ?report-id=N is in URL
             const urlParams = new URLSearchParams(window.location.search);
@@ -465,6 +474,47 @@ function appState() {
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;");
+        },
+
+        // --- Configure marked custom renderers (called once at init) ---
+        initMarkdown() {
+            if (typeof marked === 'undefined') return;
+            const self = this;
+            window.openImagePreview = function(src) {
+                self.imgLightboxSrc = src;
+                self.imgLightboxScale = 1;
+                self.imgLightboxNaturalW = 0;
+                self.imgLightboxOpen = true;
+            };
+            marked.use({
+                renderer: {
+                    link({ href, title, text }) {
+                        const t = title ? ` title="${title}"` : '';
+                        return `<a href="${href}"${t} target="_blank" rel="noopener noreferrer">${text}</a>`;
+                    },
+                    image({ href, title, text }) {
+                        const t = title ? ` title="${title}"` : '';
+                        return `<img src="${href}" alt="${text}"${t} class="md-img-clickable" onclick="window.openImagePreview(this.src)">`;
+                    }
+                }
+            });
+        },
+
+        // --- Image Lightbox Controls ---
+        openImgLightbox(src) {
+            this.imgLightboxSrc = src;
+            this.imgLightboxScale = 1;
+            this.imgLightboxNaturalW = 0;
+            this.imgLightboxOpen = true;
+        },
+        closeImgLightbox() {
+            this.imgLightboxOpen = false;
+        },
+        zoomInImg() {
+            this.imgLightboxScale = Math.min(+(this.imgLightboxScale + 0.25).toFixed(2), 5);
+        },
+        zoomOutImg() {
+            this.imgLightboxScale = Math.max(+(this.imgLightboxScale - 0.25).toFixed(2), 0.25);
         },
 
         // --- Render Markdown to HTML using marked.js ---

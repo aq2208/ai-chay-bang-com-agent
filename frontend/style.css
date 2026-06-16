@@ -270,6 +270,26 @@ button:disabled {
     color: #67e8f9;
 }
 
+/* ===== Markdown Images ===== */
+.md-img-clickable {
+    max-width: 100%;
+    border-radius: 6px;
+    cursor: zoom-in;
+    transition: box-shadow 0.2s, opacity 0.2s;
+    display: block;
+    margin: 0.5rem 0;
+}
+.md-img-clickable:hover {
+    opacity: 0.88;
+    box-shadow: 0 0 0 2px #22d3ee, 0 4px 24px rgba(34, 211, 238, 0.18);
+}
+
+/* ===== Image Lightbox Scroll Container ===== */
+.img-lb-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.img-lb-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+.img-lb-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+.img-lb-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+
 /* ===== Superman Arrest Sequence Animations ===== */
 
 /* Heavy impact shake (stronger than normal shake) */
