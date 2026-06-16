@@ -500,7 +500,7 @@ def get_daily_complaints():
             dt = posted_at or crawled_at
             if not dt:
                 continue
-            date_str = dt.strftime("%Y-%m-%d")
+            d_key = dt.date()
             platform_norm = str(platform).lower().strip()
             if "thread" in platform_norm:
                 platform_key = "threads"
@@ -511,14 +511,17 @@ def get_daily_complaints():
             else:
                 platform_key = platform_norm
 
-            if date_str not in counts:
-                counts[date_str] = {}
-            counts[date_str][platform_key] = counts[date_str].get(platform_key, 0) + 1
+            if d_key not in counts:
+                counts[d_key] = {}
+            counts[d_key][platform_key] = counts[d_key].get(platform_key, 0) + 1
             
         sorted_dates = sorted(counts.keys())
+        nearest_dates = sorted_dates[-30:]
+        
         result = []
-        for d in sorted_dates:
-            entry = {"date": d}
+        for d in nearest_dates:
+            date_str = d.strftime("%d %m %Y")
+            entry = {"date": date_str}
             for pk in ["threads", "jira", "app_store"]:
                 entry[pk] = counts[d].get(pk, 0)
             for pk, count in counts[d].items():
@@ -623,6 +626,8 @@ def generate_report_from_db(
         raise HTTPException(status_code=400, detail="start_data_time phải trước end_data_time.")
 
     db = SessionLocal()
+    raw_posts = []
+    report_id = None
     try:
         posts = db.query(Post).filter(
             Post.crawled_at >= start_dt,
@@ -652,7 +657,7 @@ def generate_report_from_db(
         ai_report = AIReport(
             created_at=datetime.utcnow(),
             report_type="social_report",
-            content=None,
+            content="",  # empty string to satisfy NOT NULL constraint in DB; will be updated to full content once report is generated
             status="RUNNING",
             start_data_time=start_dt,
             end_data_time=end_dt,
@@ -662,8 +667,17 @@ def generate_report_from_db(
         db.refresh(ai_report)
         report_id = ai_report.id
         print(f"[report] Created RUNNING report record id={report_id}.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"[report] ERROR creating report record: {e}")
+        raise HTTPException(status_code=500, detail=f"Lỗi khởi tạo báo cáo: {str(e)}")
     finally:
         db.close()
+
+    if report_id is None:
+        raise HTTPException(status_code=500, detail="Không thể tạo bản ghi báo cáo.")
 
     # Broadcast that a new RUNNING report exists
     broadcast_report_event_sync(report_id, "RUNNING")

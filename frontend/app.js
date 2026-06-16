@@ -500,6 +500,19 @@ function appState() {
                             }
                         ]
                     },
+                    plugins: [{
+                        id: 'chartLetterSpacing',
+                        beforeDraw(chart) {
+                            if (chart.ctx && 'letterSpacing' in chart.ctx) {
+                                chart.ctx.letterSpacing = '2.5px';
+                            }
+                        },
+                        afterDraw(chart) {
+                            if (chart.ctx && 'letterSpacing' in chart.ctx) {
+                                chart.ctx.letterSpacing = '0px';
+                            }
+                        }
+                    }],
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
@@ -509,7 +522,8 @@ function appState() {
                                     color: '#94a3b8',
                                     font: {
                                         family: 'Orbitron',
-                                        size: 11
+                                        size: 12,
+                                        weight: '500'
                                     }
                                 }
                             },
