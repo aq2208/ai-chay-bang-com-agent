@@ -39,6 +39,10 @@ jobs:
         run: |
           bash scripts/cr.sh credentials docker-login
 
+      - name: Automatically clean up Container Registry if low on space
+        run: |
+          python scripts/cleanup_cr.py
+
       - name: Build and Push Docker Image
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
