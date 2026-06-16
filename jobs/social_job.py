@@ -22,7 +22,7 @@ from __future__ import annotations
 from processors.preprocessor import preprocess
 from processors.sentiment import filter_negative
 from processors.image_analyzer import load_sample_images, analyze_image
-from processors.issue_extractor import extract_issue
+from processors.issue_extractor import extract_issue, is_valid_issue
 from processors.classifier import classify_domain, classify_segment
 from processors.grouper import group_similar
 from report.generator import generate_report
@@ -234,6 +234,9 @@ def run_report_only(raw_posts: list[dict]) -> dict:
         _log(f"  => Extracted Issue: '{item['extracted_issue']}'")
 
     _log("Step 5/8 — Technical issue extraction complete.")
+    before = len(items)
+    items = [item for item in items if is_valid_issue(item.get("extracted_issue", ""))]
+    _log(f"Filtered out {before - len(items)} non-issue / off-topic item(s) after extraction.")
     _log_data("Extracted Issues Data State", [
         {
             "id": item.get("id"),
