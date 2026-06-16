@@ -493,10 +493,9 @@ function appState() {
                 self.imgLightboxNaturalW = 0;
                 self.imgLightboxOpen = true;
             };
-            // Save a reference before use() so the table override can delegate to it
-            // with the correct `this` (parser-attached renderer). Creating a bare
-            // new marked.Renderer() inside use() has no parser and throws on tables.
-            const _baseRenderer = new marked.Renderer();
+            // Only override link and image — table scroll wrapper is applied in
+            // renderMarkdown() via string post-processing to avoid the marked v12
+            // Renderer.tablecell parser-context issue that caused silent failures.
             marked.use({
                 renderer: {
                     link({ href, title, text }) {
@@ -506,10 +505,6 @@ function appState() {
                     image({ href, title, text }) {
                         const t = title ? ` title="${title}"` : '';
                         return `<img src="${href}" alt="${text}"${t} class="md-img-clickable" onclick="window.openImagePreview(this.src)">`;
-                    },
-                    table(token) {
-                        const defaultHtml = _baseRenderer.table.call(this, token);
-                        return `<div style="width:100%;overflow-x:auto;">${defaultHtml}</div>`;
                     }
                 }
             });
@@ -537,7 +532,13 @@ function appState() {
             if (!content) return '';
             if (typeof marked === 'undefined') return this.escapeHtml(content);
             try {
-                return marked.parse(content);
+                const html = marked.parse(content);
+                // Wrap tables for horizontal scroll via post-processing.
+                // Avoids a custom table renderer in marked.use() which requires
+                // tablecell/tablerow to have a live parser context attached.
+                return html
+                    .replace(/<table>/g, '<div style="width:100%;overflow-x:auto;"><table>')
+                    .replace(/<\/table>/g, '</table></div>');
             } catch (e) {
                 console.error('[MD]: Failed to parse markdown:', e);
                 return this.escapeHtml(content);
