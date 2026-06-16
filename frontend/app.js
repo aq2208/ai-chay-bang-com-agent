@@ -586,7 +586,8 @@ function appState() {
             if (this.supermanRunning) return;
             this.supermanRunning = true;
 
-            // 1 second per number, 10→1 = 10s countdown
+            // 1 second per number, MAX_COUNT→1 countdown
+            const MAX_COUNT = 8;
             const STEP_MS = 1000;
 
             this.appendLog('[DANGEROUS]: COUNT DOWN TO DESTROY WORLD.');
@@ -604,11 +605,11 @@ function appState() {
             overlay.style.display = 'block';
 
             // Schedule Superman phases concurrently with countdown
-            // Phase 1 starts when countdown reaches 5 (= after 5 steps from 10)
-            const p1Delay  = (10 - 5) * STEP_MS;  // 5000ms
-            const p2Delay  = (10 - 3) * STEP_MS;  // 7000ms
-            const p1Dur    = p2Delay - p1Delay;    // 2000ms
-            const p2Dur    = 2500 ?? 10 * STEP_MS - p2Delay; // 3000ms
+            // Phase 1 starts when countdown reaches 5 (= after MAX_COUNT-5 steps)
+            const p1Delay  = (MAX_COUNT - 5) * STEP_MS;  // 3000ms
+            const p2Delay  = (MAX_COUNT - 3) * STEP_MS;  // 5000ms
+            const p1Dur    = p2Delay - p1Delay; // 2000ms
+            const p2Dur    = MAX_COUNT * STEP_MS - p2Delay - 500; // 2500ms
 
             const t1 = setTimeout(() => {
                 this.appendLog('[BREACH]: SUPERMAN DETECTED — PHASE 1 (TOP-LEFT → MID-RIGHT).');
@@ -622,8 +623,8 @@ function appState() {
 
 
             // Run countdown 10 → 1 (each number takes STEP_MS)
-            for (let i = 10; i >= 1; i--) {
-                this.appendLog(`[WARNING]: DEPLOY IN ${i}...`);
+            for (let i = MAX_COUNT; i >= 1; i--) {
+                this.appendLog(`[WARNING]: DESTROY IN ${i}...`);
                 if (i === 2) this.triggerScreenCrash();
                 await this.animateCountdownNumber(i, STEP_MS);
             }
@@ -835,7 +836,7 @@ function appState() {
             document.body.classList.remove('shake-effect', 'shake-heavy');
             this.glassOpenA      = false;
             this.supermanRunning = false;
-            this.appendLog('[SYSTEM]: Scene dismissed. Trật tự đã được khôi phục. Lồng bảo vệ JIRA đóng lại.');
+            this.appendLog('[SYSTEM]: Scene dismissed. Trật tự đã được khôi phục. Lồng bảo vệ sự sống đã đóng lại.');
         },
     }
 }
