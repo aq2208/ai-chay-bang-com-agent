@@ -13,7 +13,7 @@ from llm_client import llm
 SKIP = "SKIP"
 
 _SYSTEM = (
-    "You are an issue extractor for the Zalopay payment app support team.\n"
+    "You are an issue extractor for the Zalopay app support team.\n"
     "Extract the core technical issue from this user complaint.\n"
     "Output exactly one clear English sentence, 8–15 words.\n"
     "Focus on: what failed, which feature, any visible error code.\n"
@@ -21,8 +21,8 @@ _SYSTEM = (
     "If multiple issues are mentioned, extract only the most severe one.\n"
     "Output exactly 'SKIP' (no other text) if ANY of the following is true:\n"
     "  - The content contains no real technical problem (e.g. praise, general questions, spam).\n"
-    "  - The issue is unrelated to Zalopay's payment features (top-up, transfer, QR, login, wallet, merchant).\n"
-    "  - The content is too vague to identify a specific failure."
+    "  - The content is completely unrelated to the Zalopay app.\n"
+    "  - The content is too vague to identify any specific failure."
 )
 
 
