@@ -94,7 +94,9 @@ def generate_report(items: list[dict], job_name: str = "Social Media") -> str:
         else:
             links_str = "—"
             
-        # Format Screenshots — embed base64 data URIs directly, no disk write needed
+        # Format Screenshots — onclick opens full-size in new tab via window.open()
+        # (<a href="data:..."> is blocked by Chrome; window.open from onclick is not)
+        _onclick = "(function(s){var w=window.open('','_blank');w.document.write('<img src='+JSON.stringify(s)+' style=max-width:100%>');w.document.close()})(this.src)"
         images = r.get("images") or []
         img_parts = []
         for img_data in images:
@@ -102,9 +104,8 @@ def generate_report(items: list[dict], job_name: str = "Social Media") -> str:
                 continue
             src = img_data if img_data.startswith("data:") else f"data:image/png;base64,{img_data}"
             img_parts.append(
-                f'<a href="{src}" target="_blank">'
-                f'<img src="{src}" width="40" style="border-radius:4px; border:1px solid #334155; display:inline-block; margin:2px;" />'
-                f'</a>'
+                f'<img src="{src}" width="80" onclick="{_onclick}" '
+                f'style="cursor:zoom-in;border-radius:4px;border:1px solid #334155;display:inline-block;margin:2px;" />'
             )
         screenshots_str = " ".join(img_parts) if img_parts else "—"
 
