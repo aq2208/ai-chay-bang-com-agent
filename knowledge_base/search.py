@@ -34,10 +34,10 @@ def _get_model() -> SentenceTransformer:
     return _model
 
 
-def _get_collection(name: str = COLLECTION):
+def _get_collection(name: str = COLLECTION, force_reload: bool = False):
     """Return a cached ChromaDB collection by name (None if it doesn't exist)."""
     global _client
-    if name not in _collections:
+    if force_reload or name not in _collections or _collections[name] is None:
         if _client is None:
             _client = chromadb.PersistentClient(path=str(DB_PATH))
         try:
@@ -56,6 +56,12 @@ def search(issue: str, top_k: int = 2) -> list[dict]:
     Empty list if nothing matches or the index is missing.
     """
     col = _get_collection(COLLECTION)
+    if col is not None:
+        try:
+            col.count()
+        except Exception:
+            col = _get_collection(COLLECTION, force_reload=True)
+
     if col is None or col.count() == 0:
         return []
 
@@ -99,6 +105,12 @@ def search_taxonomy(issue: str, top_k: int = 5, domain: str | None = None) -> li
         few-shot grounding hints, not authoritative matches.
     """
     col = _get_collection(TAXONOMY_COLLECTION)
+    if col is not None:
+        try:
+            col.count()
+        except Exception:
+            col = _get_collection(TAXONOMY_COLLECTION, force_reload=True)
+
     if col is None or col.count() == 0:
         return []
 
