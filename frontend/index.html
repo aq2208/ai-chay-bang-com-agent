@@ -27,10 +27,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <!-- Marked.js (Markdown renderer) -->
     <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <!-- Custom Style Sheet -->
     <link rel="stylesheet" href="style.css?v=1.0.5">
+    <!-- Favicon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon_io/favicon-16x16.png">
+    <link rel="manifest" href="favicon_io/site.webmanifest">
+    <link rel="shortcut icon" href="favicon_io/favicon.ico">
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen overflow-x-hidden relative"
       x-data="appState()"
@@ -186,6 +194,21 @@
         <!-- ==================== TAB 2: DASHBOARD ==================== -->
         <div x-show="currentHash === '#dashboard'" x-cloak class="space-y-6">
 
+            <!-- Daily Complaints Chart Card -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-orbitron font-bold text-cyan-400 tracking-wider">DAILY COMPLAINTS ANALYTICS</h2>
+                    <button @click="fetchChartData()"
+                            class="px-3 py-1.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 font-orbitron text-xs tracking-wider transition-all cursor-pointer"
+                            style="box-shadow: none !important; transform: none !important;">
+                        ↺ RELOAD CHART
+                    </button>
+                </div>
+                <div class="relative w-full h-80 bg-slate-950/50 rounded-lg p-4 border border-slate-800/80">
+                    <canvas id="complaintsChart"></canvas>
+                </div>
+            </div>
+
             <!-- Date Range Report Generator -->
             <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
                 <h2 class="text-2xl font-orbitron font-bold text-cyan-400 tracking-wider mb-1">GENERATE AI REPORT</h2>
@@ -195,7 +218,7 @@
                     <!-- Start datetime -->
                     <div class="flex flex-col space-y-1">
                         <label for="start-data-time" class="text-xs font-orbitron text-slate-400 uppercase tracking-widest">Start Data Time</label>
-                        <input id="start-data-time" type="datetime-local"
+                        <input id="start-data-time" type="date"
                                x-model="reportStartTime"
                                class="bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/40 transition-all"
                         />
@@ -203,7 +226,7 @@
                     <!-- End datetime -->
                     <div class="flex flex-col space-y-1">
                         <label for="end-data-time" class="text-xs font-orbitron text-slate-400 uppercase tracking-widest">End Data Time</label>
-                        <input id="end-data-time" type="datetime-local"
+                        <input id="end-data-time" type="date"
                                x-model="reportEndTime"
                                class="bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 font-mono text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/40 transition-all"
                         />
@@ -229,54 +252,119 @@
                 </button>
 
                 <!-- Generation status message -->
-                <div x-show="reportGenMessage" x-cloak class="mt-4 px-4 py-2.5 rounded-lg border text-xs font-mono"
+                <div x-show="reportGenMessage" x-cloak class="mt-4 px-4 py-3 rounded-lg border text-xs font-mono"
                      :class="reportGenError
                          ? 'bg-red-950/30 border-red-800/40 text-red-400'
-                         : 'bg-green-950/30 border-green-800/40 text-green-400'">
+                         : (pendingReportId
+                             ? 'bg-yellow-950/30 border-yellow-700/40 text-yellow-300'
+                             : 'bg-green-950/30 border-green-800/40 text-green-400')">
                     <span x-text="reportGenMessage"></span>
                 </div>
             </div>
 
-            <!-- Latest Report Display -->
+            <!-- Reports List -->
             <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-orbitron font-bold text-cyan-400 tracking-wider">LATEST REPORT</h2>
-                    <button @click="fetchHistoryAndReports()"
+                    <h2 class="text-xl font-orbitron font-bold text-cyan-400 tracking-wider">AI REPORTS</h2>
+                    <button @click="fetchReports()"
                             class="px-3 py-1.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 font-orbitron text-xs tracking-wider transition-all cursor-pointer"
                             style="box-shadow: none !important; transform: none !important;">
                         ↺ REFRESH
                     </button>
                 </div>
-                
-                <template x-if="!latestReport">
-                    <div class="h-64 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-lg">
-                        <p class="text-slate-400 text-sm">Chưa tìm thấy báo cáo phân tích nào trong Database.</p>
-                        <p class="text-slate-500 text-xs mt-1">Hãy cào dữ liệu để khởi tạo báo cáo đầu tiên.</p>
+
+                <!-- Empty state -->
+                <template x-if="reports.length === 0">
+                    <div class="h-40 flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-lg">
+                        <p class="text-slate-400 text-sm">Chưa có báo cáo nào được tạo.</p>
+                        <p class="text-slate-500 text-xs mt-1">Hãy sử dụng Generate AI Report bên trên để tạo báo cáo đầu tiên.</p>
                     </div>
                 </template>
 
-                <template x-if="latestReport">
-                    <div class="space-y-4">
-                        <div class="flex flex-wrap gap-3 items-center border-b border-slate-800 pb-4">
-                            <div>
-                                <span class="text-xs text-slate-400">Tạo lúc:</span>
-                                <span class="text-sm font-mono text-cyan-300 ml-1" x-text="formatDate(latestReport.created_at)"></span>
-                            </div>
-                            <template x-if="latestReport.start_data_time">
-                                <div class="flex items-center space-x-2 text-xs font-mono text-slate-400">
-                                    <span class="px-2 py-0.5 bg-slate-800 rounded border border-slate-700">DATA</span>
-                                    <span x-text="formatDate(latestReport.start_data_time)"></span>
-                                    <span>→</span>
-                                    <span x-text="formatDate(latestReport.end_data_time)"></span>
-                                </div>
-                            </template>
-                            <span class="px-3 py-1 bg-cyan-950 text-cyan-400 rounded-full font-mono text-xs border border-cyan-800/40 ml-auto" x-text="latestReport.report_type.toUpperCase()"></span>
-                        </div>
+                <!-- Reports table -->
+                <template x-if="reports.length > 0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left font-mono text-sm border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-800 text-slate-400 bg-slate-950/50">
+                                    <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">#</th>
+                                    <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Type</th>
+                                    <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Status</th>
+                                    <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Created At</th>
+                                    <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400">Data Range</th>
+                                    <th class="p-3 text-xs tracking-wider uppercase font-orbitron text-cyan-400 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="report in reports" :key="report.id">
+                                    <tr class="border-b border-slate-800/60 hover:bg-slate-900/20 transition-colors">
+                                        <!-- ID -->
+                                        <td class="p-3 text-slate-500 text-xs" x-text="'#' + report.id"></td>
 
-                        <!-- Main report display -->
-                        <div class="md-report-container bg-slate-950/70 border border-slate-800/80 rounded-lg p-6 font-mono text-sm leading-relaxed overflow-x-auto text-slate-300 max-h-[500px] overflow-y-auto custom-scrollbar">
-                            <div class="md-report" x-html="renderMarkdown(latestReport.content)"></div>
-                        </div>
+                                        <!-- Type -->
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 bg-cyan-950/40 text-cyan-400 rounded-full font-mono text-xs border border-cyan-800/40"
+                                                  x-text="report.report_type.toUpperCase()"></span>
+                                        </td>
+
+                                        <!-- Status badge -->
+                                        <td class="p-3">
+                                            <span class="px-2 py-0.5 rounded text-xs border font-orbitron"
+                                                  :class="{
+                                                      'bg-yellow-950/30 text-yellow-400 border-yellow-700/40 animate-pulse': report.status === 'RUNNING',
+                                                      'bg-green-950/30 text-green-400 border-green-700/40': report.status === 'DONE',
+                                                      'bg-red-950/30 text-red-400 border-red-700/40': report.status === 'ERROR'
+                                                  }"
+                                                  x-text="report.status"></span>
+                                        </td>
+
+                                        <!-- Created At -->
+                                        <td class="p-3 text-slate-400 text-xs" x-text="formatDate(report.created_at)"></td>
+
+                                        <!-- Data Range -->
+                                        <td class="p-3 text-xs text-slate-400">
+                                            <template x-if="report.start_data_time">
+                                                <span>
+                                                    <span x-text="formatDateOnly(report.start_data_time)"></span>
+                                                    <span class="text-slate-600 mx-1">→</span>
+                                                    <span x-text="formatDateOnly(report.end_data_time)"></span>
+                                                </span>
+                                            </template>
+                                            <template x-if="!report.start_data_time">
+                                                <span class="text-slate-600">—</span>
+                                            </template>
+                                        </td>
+
+                                        <!-- Action: eye icon (only for DONE reports) -->
+                                        <td class="p-3 text-center">
+                                            <template x-if="report.status === 'DONE'">
+                                                <button @click="viewReport(report.id)"
+                                                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-cyan-800/40 bg-cyan-950/30 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/50 hover:border-cyan-600/60 transition-all cursor-pointer"
+                                                        style="box-shadow: none !important; transform: none !important;"
+                                                        :title="'View Report #' + report.id">
+                                                    <!-- Eye icon -->
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                </button>
+                                            </template>
+                                            <template x-if="report.status === 'RUNNING'">
+                                                <span class="inline-flex items-center justify-center w-8 h-8">
+                                                    <svg class="animate-spin h-4 w-4 text-yellow-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                </span>
+                                            </template>
+                                            <template x-if="report.status === 'ERROR'">
+                                                <span class="inline-flex items-center justify-center w-8 h-8 text-red-500" title="Generation failed">✕</span>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
                     </div>
                 </template>
             </div>
@@ -402,7 +490,90 @@
         </div>
     </div>
 
+    <!-- ==================== REPORT PREVIEW MODAL ==================== -->
+    <div x-show="reportModalOpen"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
+         x-transition
+         style="display: none;"
+         @keydown.escape.window="reportModalOpen = false">
+
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl flex flex-col shadow-2xl max-h-[90vh] relative"
+             @click.away="reportModalOpen = false">
+
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4 shrink-0">
+                <div class="flex items-center space-x-3">
+                    <div class="w-2 h-2 bg-cyan-500 rounded-full animate-ping"></div>
+                    <h3 class="font-orbitron font-bold tracking-wider text-sm text-cyan-400">REPORT PREVIEW</h3>
+                    <template x-if="reportModalMeta">
+                        <span class="px-2 py-0.5 bg-cyan-950/50 border border-cyan-800/40 text-cyan-300 rounded-full font-mono text-xs"
+                              x-text="'#' + reportModalMeta.id"></span>
+                    </template>
+                </div>
+                <button @click="reportModalOpen = false"
+                        class="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg border border-transparent hover:border-slate-700 transition-all cursor-pointer"
+                        style="box-shadow: none !important; transform: none !important;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Report Meta Bar -->
+            <template x-if="reportModalMeta">
+                <div class="flex flex-wrap items-center gap-4 px-6 py-3 border-b border-slate-800/60 bg-slate-950/40 text-xs font-mono text-slate-400 shrink-0">
+                    <div class="flex items-center space-x-1.5">
+                        <span class="text-slate-500">Tạo lúc:</span>
+                        <span class="text-slate-300" x-text="formatDate(reportModalMeta.created_at)"></span>
+                    </div>
+                    <template x-if="reportModalMeta.start_data_time">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-slate-400">DATA</span>
+                            <span x-text="formatDateOnly(reportModalMeta.start_data_time)"></span>
+                            <span class="text-slate-600">→</span>
+                            <span x-text="formatDateOnly(reportModalMeta.end_data_time)"></span>
+                        </div>
+                    </template>
+                    <span class="ml-auto px-2 py-0.5 bg-cyan-950/40 text-cyan-400 border border-cyan-800/40 rounded-full"
+                          x-text="reportModalMeta.report_type.toUpperCase()"></span>
+                </div>
+            </template>
+
+            <!-- Loading state -->
+            <template x-if="reportModalLoading">
+                <div class="flex-1 flex items-center justify-center py-20">
+                    <div class="flex flex-col items-center space-y-4">
+                        <svg class="animate-spin h-8 w-8 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-slate-400 font-mono text-xs">Đang tải báo cáo...</p>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Report Content (Markdown rendered) -->
+            <template x-if="!reportModalLoading">
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-6 min-h-0">
+                    <div class="md-report-container bg-slate-950/70 border border-slate-800/80 rounded-lg p-6 text-slate-300 text-sm leading-relaxed">
+                        <div class="md-report" x-html="renderMarkdown(reportModalContent)"></div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Modal Footer -->
+            <div class="flex justify-end px-6 py-4 border-t border-slate-800 shrink-0">
+                <button @click="reportModalOpen = false"
+                        class="px-5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 font-orbitron text-xs tracking-wider hover:text-slate-200 transition-all cursor-pointer"
+                        style="box-shadow: none !important; transform: none !important;">
+                    CLOSE
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- JS Logic Scripts -->
-    <script src="app.js?v=1.0.5"></script>
+    <script src="app.js?v=1.0.6"></script>
+
 </body>
 </html>
