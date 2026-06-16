@@ -710,11 +710,7 @@ def _run_report_from_posts(
     try:
         print(f"[report] Generating report id={report_id} from {len(raw_posts)} posts ({start_data_time} → {end_data_time})...")
         result = run_report_only(raw_posts=raw_posts)
-        report_content = ""
-        report_path = result.get("report_path")
-        if report_path and os.path.exists(report_path):
-            with open(report_path, "r", encoding="utf-8") as f:
-                report_content = f.read()
+        report_content = result.get("report_content", "")
 
         # Update the existing RUNNING record
         ai_report = db.query(AIReport).filter(AIReport.id == report_id).first()
@@ -746,11 +742,6 @@ def _run_report_from_posts(
     finally:
         db.close()
 
-
-# Serve Output Static Files (for reports & saved images)
-os.makedirs("output", exist_ok=True)
-api_app.mount("/output", StaticFiles(directory="output"), name="output")
-print("[output] Serving output files from: output/")
 
 # Serve Frontend Static Files
 frontend_dir = Path(__file__).parent / "frontend"

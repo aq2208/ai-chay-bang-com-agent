@@ -25,7 +25,7 @@ from processors.image_analyzer import load_sample_images, analyze_image
 from processors.issue_extractor import extract_issue
 from processors.classifier import classify_domain, classify_segment
 from processors.grouper import group_similar
-from report.generator import generate_report, save_report
+from report.generator import generate_report
 from report.guardrails import check_report
 
 
@@ -193,11 +193,9 @@ def run_report_only(raw_posts: list[dict]) -> dict:
     _log(f"Loaded {len(items)} posts for report generation")
 
     if not items:
-        _log("No posts provided — writing empty report.")
+        _log("No posts provided — generating empty report.")
         report = generate_report([], job_name="Social Media")
-        path = save_report(report, "Social Media")
-        _log(f"Empty report saved to: {path}")
-        return {"report_path": str(path), "issues": 0, "mentions": 0}
+        return {"report_content": report, "issues": 0, "mentions": 0}
 
     # ── Step 4: Load sample images ────────────────────────────────────────
     _log("Step 4/8 — Loading sample reference screenshot images for vision matching...")
@@ -291,9 +289,7 @@ def run_report_only(raw_posts: list[dict]) -> dict:
     else:
         _log("  Guardrail checks passed successfully.")
 
-    _log("Saving report markdown file to local disk...")
-    path = save_report(report, "Social Media")
-    _log(f"Step 8/8 — Report successfully saved: {path}")
+    _log("Step 8/8 — Report generated.")
 
     # Index issues for the agentic Q&A store (best-effort — never block report delivery).
     _log("Indexing grouped issues into ChromaDB collection for Agentic Q&A...")
@@ -306,4 +302,4 @@ def run_report_only(raw_posts: list[dict]) -> dict:
 
     total_mentions = sum(item.get("mentions", 1) for item in items)
     _log(f"ReportOnly Pipeline Run finished. Issues: {len(items)}, Mentions: {total_mentions}")
-    return {"report_path": str(path), "issues": len(items), "mentions": total_mentions}
+    return {"report_content": report, "issues": len(items), "mentions": total_mentions}

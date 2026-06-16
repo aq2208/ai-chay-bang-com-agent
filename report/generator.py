@@ -17,42 +17,19 @@ before rendering, so callers don't need to.
 
 from __future__ import annotations
 
-import base64
 from datetime import date
-import hashlib
 from pathlib import Path
 
 from knowledge_base.search import get_suggested_approach
 from llm_client import llm
+
+OUTPUT_DIR = Path(__file__).parent.parent / "output"
 
 _SUMMARY_SYSTEM = (
     "You are a Product Owner report writer for Zalopay. "
     "Write a 2–3 sentence executive summary of the complaint trends shown. "
     "Be factual, concise, and actionable. Plain text only — no markdown."
 )
-
-OUTPUT_DIR = Path(__file__).parent.parent / "output"
-
-
-def _get_image_hash(base64_str: str) -> str:
-    return hashlib.md5(base64_str[:1000].encode("utf-8")).hexdigest()[:12]
-
-
-def _save_base64_image(base64_str: str, filename: str) -> str | None:
-    try:
-        if "," in base64_str:
-            base64_str = base64_str.split(",", 1)[1]
-        data = base64.b64decode(base64_str)
-        
-        images_dir = OUTPUT_DIR / "images"
-        images_dir.mkdir(parents=True, exist_ok=True)
-        
-        filepath = images_dir / filename
-        filepath.write_bytes(data)
-        return f"/output/images/{filename}"
-    except Exception as e:
-        print(f"[generator] Error saving base64 image: {e}")
-        return None
 
 
 def generate_report(items: list[dict], job_name: str = "Social Media") -> str:
@@ -109,32 +86,19 @@ def generate_report(items: list[dict], job_name: str = "Social Media") -> str:
         else:
             links_str = "—"
             
-        # Format Screenshots
+        # Format Screenshots — embed base64 data URIs directly, no disk write needed
         images = r.get("images") or []
         img_parts = []
-        for idx, img_data in enumerate(images):
+        for img_data in images:
             if not img_data:
                 continue
-            img_hash = _get_image_hash(img_data)
-            ext = "png"
-            if "data:image/" in img_data:
-                prefix = img_data.split(";")[0]
-                detected_ext = prefix.split("/")[-1]
-                if detected_ext in ("png", "jpeg", "jpg", "webp", "gif"):
-                    ext = detected_ext
-            filename = f"{img_hash}.{ext}"
-            
-            saved_path = _save_base64_image(img_data, filename)
-            if saved_path:
-                img_parts.append(
-                    f'<a href="{saved_path}" target="_blank">'
-                    f'<img src="{saved_path}" width="40" style="border-radius:4px; border:1px solid #334155; display:inline-block; margin:2px;" />'
-                    f'</a>'
-                )
-        if img_parts:
-            screenshots_str = " ".join(img_parts)
-        else:
-            screenshots_str = "—"
+            src = img_data if img_data.startswith("data:") else f"data:image/png;base64,{img_data}"
+            img_parts.append(
+                f'<a href="{src}" target="_blank">'
+                f'<img src="{src}" width="40" style="border-radius:4px; border:1px solid #334155; display:inline-block; margin:2px;" />'
+                f'</a>'
+            )
+        screenshots_str = " ".join(img_parts) if img_parts else "—"
 
         lines.append(
             f"| {r['domain']} | {r['segment']} | {r['issue']} "
