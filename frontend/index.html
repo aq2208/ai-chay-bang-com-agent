@@ -199,9 +199,15 @@
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-orbitron font-bold text-cyan-400 tracking-wider">DAILY COMPLAINTS ANALYTICS</h2>
                     <button @click="fetchChartData()"
-                            class="px-3 py-1.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 font-orbitron text-xs tracking-wider transition-all cursor-pointer"
+                            class="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 font-orbitron text-xs tracking-wider transition-all cursor-pointer"
                             style="box-shadow: none !important; transform: none !important;">
-                        ↺ RELOAD CHART
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                            <path d="M3 21v-5h5"/>
+                        </svg>
+                        RELOAD CHART
                     </button>
                 </div>
                 <div class="relative w-full h-80 bg-slate-950/50 rounded-lg p-4 border border-slate-800/80">
@@ -267,9 +273,15 @@
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-orbitron font-bold text-cyan-400 tracking-wider">AI REPORTS</h2>
                     <button @click="fetchReports()"
-                            class="px-3 py-1.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 font-orbitron text-xs tracking-wider transition-all cursor-pointer"
+                            class="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 font-orbitron text-xs tracking-wider transition-all cursor-pointer"
                             style="box-shadow: none !important; transform: none !important;">
-                        ↺ REFRESH
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                            <path d="M3 21v-5h5"/>
+                        </svg>
+                        REFRESH
                     </button>
                 </div>
 
@@ -495,10 +507,10 @@
          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
          x-transition
          style="display: none;"
-         @keydown.escape.window="reportModalOpen = false">
+         @keydown.escape.window="closeReportModal()">
 
         <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl flex flex-col shadow-2xl max-h-[90vh] relative"
-             @click.away="reportModalOpen = false">
+             @click.away="closeReportModal()">
 
             <!-- Modal Header -->
             <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4 shrink-0">
@@ -510,7 +522,7 @@
                               x-text="'#' + reportModalMeta.id"></span>
                     </template>
                 </div>
-                <button @click="reportModalOpen = false"
+                <button @click="closeReportModal()"
                         class="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg border border-transparent hover:border-slate-700 transition-all cursor-pointer"
                         style="box-shadow: none !important; transform: none !important;">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -562,8 +574,48 @@
             </template>
 
             <!-- Modal Footer -->
-            <div class="flex justify-end px-6 py-4 border-t border-slate-800 shrink-0">
-                <button @click="reportModalOpen = false"
+            <div class="flex items-center justify-between px-6 py-4 border-t border-slate-800 shrink-0">
+                <div class="flex items-center gap-2" x-show="!reportModalLoading && reportModalMeta">
+                    <!-- Copy MD button -->
+                    <button @click="copyReportContent()"
+                            class="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded font-orbitron text-xs tracking-wider transition-all cursor-pointer"
+                            :class="reportCopied ? 'text-green-400 border-green-700' : 'text-slate-300 hover:text-slate-200'"
+                            style="box-shadow: none !important; transform: none !important;"
+                            title="Copy markdown content">
+                        <template x-if="!reportCopied">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </template>
+                        <template x-if="reportCopied">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </template>
+                        <span x-text="reportCopied ? 'COPIED!' : 'COPY MD'"></span>
+                    </button>
+                    <!-- Share button -->
+                    <button @click="shareReport()"
+                            class="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded font-orbitron text-xs tracking-wider transition-all cursor-pointer"
+                            :class="reportShared ? 'text-green-400 border-green-700' : 'text-slate-300 hover:text-slate-200'"
+                            style="box-shadow: none !important; transform: none !important;"
+                            title="Copy shareable link">
+                        <template x-if="!reportShared">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                            </svg>
+                        </template>
+                        <template x-if="reportShared">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </template>
+                        <span x-text="reportShared ? 'LINK COPIED!' : 'SHARE'"></span>
+                    </button>
+                </div>
+                <button @click="closeReportModal()"
                         class="px-5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 font-orbitron text-xs tracking-wider hover:text-slate-200 transition-all cursor-pointer"
                         style="box-shadow: none !important; transform: none !important;">
                     CLOSE

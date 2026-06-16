@@ -35,6 +35,8 @@ function appState() {
         reportModalContent: '',
         reportModalMeta: null,   // { id, report_type, status, created_at, start_data_time, end_data_time }
         reportModalLoading: false,
+        reportCopied: false,
+        reportShared: false,
 
         // --- Superman Easter Egg State ---
         supermanRunning: false,
@@ -63,6 +65,16 @@ function appState() {
 
             // Connect WebSocket for real-time updates
             this.initWebSocket();
+
+            // Deep-link: auto-open report modal if ?report_id=N or ?report-id=N is in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const deepLinkReportId = urlParams.get('report_id') || urlParams.get('report-id');
+            if (deepLinkReportId) {
+                this.currentHash = '#dashboard';
+                window.location.hash = '#dashboard';
+                this.fetchChartData();
+                this.viewReport(parseInt(deepLinkReportId, 10));
+            }
 
             // Debug helpers
             window._superman = this;
@@ -157,6 +169,39 @@ function appState() {
             } finally {
                 this.reportModalLoading = false;
             }
+        },
+
+        // --- Copy markdown content to clipboard ---
+        copyReportContent() {
+            if (!this.reportModalContent) return;
+            navigator.clipboard.writeText(this.reportModalContent).then(() => {
+                this.reportCopied = true;
+                setTimeout(() => { this.reportCopied = false; }, 2000);
+            });
+        },
+
+        // --- Copy shareable URL (with report_id param) to clipboard ---
+        shareReport() {
+            if (!this.reportModalMeta) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('report_id', this.reportModalMeta.id);
+            url.hash = '#dashboard';
+            const shareUrl = url.toString();
+            history.replaceState(null, '', shareUrl);
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                this.reportShared = true;
+                setTimeout(() => { this.reportShared = false; }, 2000);
+            });
+        },
+
+        // --- Close report modal and clean up URL param ---
+        closeReportModal() {
+            this.reportModalOpen = false;
+            const url = new URL(window.location.href);
+            let changed = false;
+            if (url.searchParams.has('report_id')) { url.searchParams.delete('report_id'); changed = true; }
+            if (url.searchParams.has('report-id')) { url.searchParams.delete('report-id'); changed = true; }
+            if (changed) history.replaceState(null, '', url.toString());
         },
 
         // --- Khởi tạo kết nối WebSockets ---
