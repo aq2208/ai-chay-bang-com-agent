@@ -36,7 +36,16 @@ OUTPUT_DIR = Path(__file__).parent.parent / "output"
 _SUMMARY_SYSTEM = (
     "You are a Product Owner report writer for Zalopay. "
     "Write a 2–3 sentence executive summary of the complaint trends shown. "
-    "Be factual, concise, and actionable. Plain text only — no markdown."
+    "Be factual, concise, and actionable. Plain text only — no markdown. "
+    "Always refer to the app as 'Zalopay' (capital Z only)."
+)
+
+_BRAND_NORMALIZE_SYSTEM = (
+    "You are a text editor. Replace every informal or misspelled reference to the "
+    "Zalopay payment app — such as 'ví zalo', 'ví điện tử zalo', 'app zalo', "
+    "'zalopay', 'ZaloPay', 'ZALOPAY', 'zalo pay', or any other variant — with the "
+    "official name 'Zalopay'. Return only the corrected text, word for word. "
+    "Do not change anything else."
 )
 
 
@@ -169,11 +178,17 @@ def _executive_summary(rows: list[dict], today: str, job_name: str) -> str:
         f"- {r['domain']}/{r['segment']}: {r['issue']} ({r['mentions']} mention(s))"
         for r in top
     )
-    return llm.chat(
+    summary = llm.chat(
         system=_SUMMARY_SYSTEM,
         user=f"Report: {job_name}, {today}\n\n{issue_list}",
         max_tokens=150,
         fast=False,
+    )
+    return llm.chat(
+        system=_BRAND_NORMALIZE_SYSTEM,
+        user=summary,
+        max_tokens=200,
+        fast=True,
     )
 
 
