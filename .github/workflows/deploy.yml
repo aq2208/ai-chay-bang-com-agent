@@ -51,10 +51,18 @@ jobs:
             IMAGE_TAG="v${{ github.run_number }}"
           fi
           IMAGE_NAME="vcr.vngcloud.vn/111480-abp111948/ai-chay-bang-com-agent:$IMAGE_TAG"
-          echo "Building image $IMAGE_NAME..."
-          docker build --platform linux/amd64 --build-arg HF_TOKEN="${{ secrets.HF_TOKEN }}" -t $IMAGE_NAME .
-          echo "Pushing image to VCR..."
-          docker push $IMAGE_NAME
+          echo "Building and pushing image $IMAGE_NAME..."
+          # --cache-from/to: restore/save Docker layer cache in GitHub Actions cache
+          # so the expensive pip-install and model-bake layers are skipped on
+          # subsequent runs when requirements.txt has not changed (~25 min → ~2 min).
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg HF_TOKEN="${{ secrets.HF_TOKEN }}" \
+            --cache-from type=gha \
+            --cache-to   type=gha,mode=max \
+            --push \
+            -t "$IMAGE_NAME" \
+            .
 
       - name: Deploy Update to GreenNode Runtime
         run: |
