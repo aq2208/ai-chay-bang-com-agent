@@ -502,6 +502,10 @@ function appState() {
                     image({ href, title, text }) {
                         const t = title ? ` title="${title}"` : '';
                         return `<img src="${href}" alt="${text}"${t} class="md-img-clickable" onclick="window.openImagePreview(this.src)">`;
+                    },
+                    table(token) {
+                        const defaultHtml = new marked.Renderer().table(token);
+                        return `<div style="width:100%;overflow-x:auto;">${defaultHtml}</div>`;
                     }
                 }
             });
