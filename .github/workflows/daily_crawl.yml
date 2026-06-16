@@ -2,20 +2,24 @@ name: Daily Crawl and Sync
 
 on:
   schedule:
-    # Runs daily at a less congested minute around 1:00 AM UTC (8:37 AM VN time) to minimize GitHub Actions scheduling delay
-    - cron: '0 8 * * *'
+    # Runs daily at 1:00 AM UTC (8:00 AM VN time, UTC+7) — low traffic window
+    - cron: '0 1 * * *'
   workflow_dispatch:
-    # Allows manual trigger from GitHub UI / API
+    inputs:
+      dry_run:
+        description: 'Dry run — skip LLM pipeline and DB writes'
+        type: boolean
+        default: false
 
 jobs:
   crawl-and-sync:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -23,9 +27,27 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements-crawler.txt
-          python -m playwright install chromium --with-deps
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('requirements-crawler.txt') }}
+
+      - name: Install Playwright browser
+        run: python -m playwright install chromium --with-deps
+
+      - name: Validate required secrets
+        env:
+          AGENT_ENDPOINT_URL: ${{ secrets.AGENT_ENDPOINT_URL }}
+        run: |
+          if [ -z "$AGENT_ENDPOINT_URL" ]; then
+            echo "ERROR: AGENT_ENDPOINT_URL secret is not set."
+            exit 1
+          fi
 
       - name: Run Playwright Threads Crawler
+        timeout-minutes: 15
         env:
           THREADS_AUTH_STATE_JSON: ${{ secrets.THREADS_AUTH_STATE_JSON }}
         run: |
@@ -34,12 +56,19 @@ jobs:
       - name: Sync Crawled Data to Agent Runtime
         env:
           AGENT_ENDPOINT_URL: ${{ secrets.AGENT_ENDPOINT_URL }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
-          python -m crawlers.sync_to_agent
+          for i in 1 2 3; do
+            python -m crawlers.sync_to_agent && break
+            echo "Attempt $i failed — retrying in 15s..."
+            sleep 15
+          done
 
       - name: Report failure to Agent
         if: failure()
         env:
           AGENT_ENDPOINT_URL: ${{ secrets.AGENT_ENDPOINT_URL }}
         run: |
-          curl -X POST "$AGENT_ENDPOINT_URL/api/crawl/fail" -H "Content-Type: application/json" -d '{"job_type": "social", "error": "GitHub Actions workflow run failed."}' || true
+          curl -X POST "$AGENT_ENDPOINT_URL/api/crawl/fail" \
+            -H "Content-Type: application/json" \
+            -d '{"job_type": "social", "error": "GitHub Actions workflow run failed."}' || true

@@ -38,10 +38,12 @@ def run():
 
     # 3. Read endpoint config
     agent_url = os.getenv("AGENT_ENDPOINT_URL", "http://localhost:8080").rstrip("/")
+    dry_run = os.getenv("DRY_RUN", "false").lower() in ("1", "true", "yes")
     print(f"[sync] Target Agent Base URL: {agent_url}")
+    print(f"[sync] Dry run: {dry_run}")
 
     # 4. Trigger social job pipeline and pass raw posts in body
-    trigger_url = f"{agent_url}/run/social/callback?dry_run=false"
+    trigger_url = f"{agent_url}/run/social/callback?dry_run={str(dry_run).lower()}"
     try:
         print(f"[sync] Sending POST {trigger_url} with {len(records)} records...")
         r = requests.post(trigger_url, json=records, timeout=60)
