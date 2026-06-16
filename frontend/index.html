@@ -109,7 +109,7 @@
                         <!-- Glass Protective Cover -->
                         <div class="group/shield absolute inset-0 border border-slate-700/60 rounded-full bg-slate-950/20 backdrop-blur-xs flex items-center justify-center transition-all duration-500 z-20 cursor-pointer"
                              :class="glassOpenA ? 'opacity-0 scale-125 pointer-events-none' : 'opacity-100 scale-100'"
-                             @click="glassOpenA = true; appendLog('[SYSTEM]: Lồng bảo vệ JIRA đã được mở. Sẵn sàng kích hoạt.')">
+                             @click="glassOpenA = true; appendLog('[SYSTEM]: Lồng bảo vệ sự sống đã được mở. Sẵn sàng kích hoạt.')">
                             <span class="text-cyan-500/90 group-hover/shield:text-cyan-400 group-hover/shield:opacity-100 group-hover/shield:animate-none font-orbitron font-black text-[10px] tracking-widest uppercase animate-pulse select-none text-center px-4">CLICK TO OPEN SHIELD</span>
                         </div>
 
@@ -571,6 +571,137 @@
             </div>
         </div>
     </div>
+
+    <!-- ==================== SUPERMAN ARREST SEQUENCE OVERLAYS ==================== -->
+
+    <!-- 1. Countdown Overlay (dark bg + canvas + static title) -->
+    <div id="superman-countdown-overlay"
+         class="fixed inset-0 z-[100]"
+         style="display:none; background:rgba(0,0,0,0.92);">
+        <canvas id="superman-countdown-canvas" style="position:absolute; top:0; left:0; display:block;"></canvas>
+        <!-- Static title — stays visible throughout countdown, does NOT pulse with numbers -->
+        <div class="absolute top-0 left-0 right-0 pointer-events-none" style="padding-top:clamp(1.5rem,5vh,3.5rem); z-index:1; text-align:center;">
+            <p class="font-orbitron font-black uppercase tracking-widest"
+               style="font-size:clamp(1.4rem,3.5vw,2.6rem); color:#ef4444;
+                      text-shadow:0 0 30px rgba(239,68,68,0.95),0 0 6px rgba(239,68,68,1);">
+                ⚠ &nbsp;COUNT DOWN TO DETROY WORLD&nbsp; ⚠
+            </p>
+            <p class="font-mono uppercase tracking-widest"
+               style="font-size:0.7rem; color:rgba(239,68,68,0.5); margin-top:0.5rem; letter-spacing:0.2em;">
+                SELF-DESTRUCT SEQUENCE INITIATED
+            </p>
+        </div>
+    </div>
+
+    <!-- 2. Flying Superman Figure — all positioning via JS transform; img rotated 90° to fly horizontal -->
+    <div id="superman-flying-figure"
+         class="fixed z-[101] pointer-events-none"
+         style="display:none; left:0; top:0;">
+        <img src="img/superman-fly-removebg.png" alt=""
+             style="height:220px; width:auto; transform:rotate(90deg); transform-origin:center center; display:block;">
+    </div>
+
+    <!-- 3. White Impact Flash -->
+    <div id="superman-impact-flash"
+         class="fixed inset-0 z-[102] bg-white pointer-events-none"
+         style="display:none;"></div>
+
+    <!-- 4. Screen Crack Overlay -->
+    <div id="superman-crack-overlay"
+         class="fixed inset-0 z-[103]"
+         style="display:none; backdrop-filter: blur(2px);">
+        <svg class="w-full h-full" viewBox="0 0 1000 600" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Main cracks radiating from impact center (500,300) -->
+            <g stroke="rgba(255,255,255,0.88)" fill="none">
+                <polyline points="500,300 418,198 358,98 278,28"   stroke-width="2.8"/>
+                <polyline points="418,198 382,165 342,145"          stroke-width="1.6"/>
+                <polyline points="500,300 488,178 512,72 480,0"     stroke-width="2.8"/>
+                <polyline points="500,300 592,186 675,86 755,16"    stroke-width="2.8"/>
+                <polyline points="592,186 622,158 662,148"          stroke-width="1.6"/>
+                <polyline points="500,300 658,290 808,306 1000,293" stroke-width="2.8"/>
+                <polyline points="658,290 675,320 695,340"          stroke-width="1.6"/>
+                <polyline points="500,300 605,404 705,484 825,574"  stroke-width="2.8"/>
+                <polyline points="605,404 635,434 645,465"          stroke-width="1.6"/>
+                <polyline points="500,300 512,435 493,545 524,600"  stroke-width="2.8"/>
+                <polyline points="500,300 394,405 284,482 154,560"  stroke-width="2.8"/>
+                <polyline points="394,405 364,435 344,462"          stroke-width="1.6"/>
+                <polyline points="500,300 344,295 184,306 0,290"    stroke-width="2.8"/>
+                <polyline points="344,295 325,265 304,255"          stroke-width="1.6"/>
+            </g>
+            <!-- Glass shard fills (very subtle) -->
+            <g fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.18)" stroke-width="0.8">
+                <polygon points="500,300 418,198 488,178"/>
+                <polygon points="500,300 592,186 512,178"/>
+                <polygon points="500,300 658,290 605,404"/>
+                <polygon points="500,300 344,295 394,405"/>
+                <polygon points="500,300 512,435 605,404"/>
+            </g>
+            <!-- Impact point -->
+            <circle cx="500" cy="300" r="30" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.55)" stroke-width="2.2"/>
+            <circle cx="500" cy="300" r="12" fill="rgba(255,255,255,0.28)"/>
+        </svg>
+    </div>
+
+    <!-- 5. Superman Rise Wrapper — outer div rises via JS transition; inner div has float anim -->
+    <div id="superman-rise-wrapper"
+         class="fixed z-[104] pointer-events-none"
+         style="display:none; left:4vw; bottom:0;">
+        <!-- Speech bubble (above Superman's head, pointing toward him) -->
+        <div id="superman-speech-bubble"
+             style="display:none; position:absolute; bottom:calc(100% + 10px); left:130px; min-width:280px;">
+            <div style="background:#ffffff; border-radius:14px; padding:14px 20px;
+                        box-shadow:0 6px 28px rgba(0,0,0,0.55);">
+                <p style="font-family:'Orbitron',sans-serif; font-size:11.5px; color:#111; font-weight:700; line-height:1.75; margin:0; letter-spacing: 0.2px;">
+                    In the name of Truth and Justice,<br>
+                    <span style="color:#dc2626; font-size:14px; font-weight:900;">YOU ARE ARRESTED!</span>
+                </p>
+            </div>
+            <!-- Tail pointing down-left toward head -->
+            <div style="position:absolute; bottom:-16px; left:26px; width:0; height:0;
+                        border-left:11px solid transparent; border-right:11px solid transparent;
+                        border-top:16px solid #ffffff;"></div>
+        </div>
+        <!-- Inner figure — float animation applied here (doesn't fight wrapper's rise transform) -->
+        <div id="superman-standing-figure">
+            <img src="img/superman_stand-v2-removebg.png" alt=""
+                 style="height:340px; width:auto; display:block;">
+        </div>
+    </div>
+
+    <!-- 6. "YOU ARE ARRESTED" Banner (drops from top) -->
+    <div id="arrested-banner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:105;">
+        <!-- Police lights top bar -->
+        <div class="relative h-5 w-full overflow-hidden">
+            <div class="police-red  absolute inset-0" style="background:repeating-linear-gradient(90deg,#dc2626 0,#dc2626 50px,transparent 50px,transparent 100px);"></div>
+            <div class="police-blue absolute inset-0" style="background:repeating-linear-gradient(90deg,transparent 0,transparent 50px,#1d4ed8 50px,#1d4ed8 100px);"></div>
+        </div>
+        <!-- Main text block — fully opaque background -->
+        <div class="py-7 px-4 text-center" style="background:#05040a; border-bottom:4px solid #dc2626;">
+            <p class="font-orbitron font-black text-red-500 uppercase tracking-widest"
+               style="font-size:clamp(2.2rem,6.5vw,5rem);
+                      text-shadow:0 0 30px rgba(239,68,68,0.9),0 0 60px rgba(239,68,68,0.4),0 0 3px rgba(239,68,68,1);pointer-events: none;">
+                YOU ARE ARRESTED
+            </p>
+        </div>
+        <!-- Police lights bottom bar -->
+        <div class="relative h-3 w-full overflow-hidden">
+            <div class="police-blue absolute inset-0" style="background:repeating-linear-gradient(90deg,#1d4ed8 0,#1d4ed8 50px,transparent 50px,transparent 100px);"></div>
+            <div class="police-red  absolute inset-0" style="background:repeating-linear-gradient(90deg,transparent 0,transparent 50px,#dc2626 50px,#dc2626 100px);"></div>
+        </div>
+    </div>
+
+    <!-- 7. Dismiss Button -->
+    <button id="superman-dismiss-btn"
+            @click="dismissSupermanScene()"
+            style="display:none; position:fixed; bottom:2rem; left:50%; z-index:106;
+                   transform:translateX(-50%);
+                   font-family:'Orbitron',sans-serif; font-weight:700; font-size:0.7rem;
+                   letter-spacing:0.12em; text-transform:uppercase; cursor:pointer;
+                   padding:0.65rem 1.75rem; border-radius:0.5rem;
+                   background:rgba(10,15,30,0.96); border:1px solid rgba(239,68,68,0.45);
+                   color:#f87171; box-shadow:0 0 22px rgba(239,68,68,0.28);">
+        ✕ &nbsp;DISMISS SUPERMAN
+    </button>
 
     <!-- JS Logic Scripts -->
     <script src="app.js?v=1.0.6"></script>

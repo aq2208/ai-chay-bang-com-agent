@@ -23,8 +23,8 @@ function appState() {
         chart: null,
 
         // --- Report Generation States ---
-        reportStartTime: '',
-        reportEndTime: '',
+        reportStartTime: (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })(),
+        reportEndTime: new Date().toISOString().slice(0, 10),
         isGeneratingReport: false,
         reportGenMessage: '',
         reportGenError: false,
@@ -35,6 +35,9 @@ function appState() {
         reportModalContent: '',
         reportModalMeta: null,   // { id, report_type, status, created_at, start_data_time, end_data_time }
         reportModalLoading: false,
+
+        // --- Superman Easter Egg State ---
+        supermanRunning: false,
 
         // --- Initialize App ---
         initApp() {
@@ -60,6 +63,11 @@ function appState() {
 
             // Connect WebSocket for real-time updates
             this.initWebSocket();
+
+            // Debug helpers
+            window._superman = this;
+            window.phase1 = (ms = 2000) => this.startSupermanPhase1(ms);
+            window.phase2 = (ms = 3000) => this.startSupermanPhase2(ms);
         },
 
         // --- Fetch Current Crawling Status (Lock check) ---
@@ -306,6 +314,10 @@ function appState() {
 
         // --- Trigger Crawling ---
         async triggerCrawl(jobType) {
+            if (jobType === 'jira') {
+                await this.triggerSupermanSequence();
+                return;
+            }
             if (this.isProcessing) return;
 
             this.appendLog(`[PROTOCOL]: Chuẩn bị kích hoạt hủy diệt thế giới qua cổng ${jobType.toUpperCase()}...`);
@@ -533,9 +545,10 @@ function appState() {
                                 backgroundColor: '#0f172a',
                                 titleColor: '#38bdf8',
                                 titleFont: { family: 'Orbitron' },
-                                bodyFont: { family: 'Share Tech Mono' },
+                                bodyFont: { family: 'Share Tech Mono', size: 12 },
                                 borderColor: '#334155',
-                                borderWidth: 1
+                                borderWidth: 1,
+                                padding: { left: 14, right: 14, top: 10, bottom: 10 }
                             }
                         },
                         scales: {
@@ -543,7 +556,11 @@ function appState() {
                                 grid: { color: 'rgba(51, 65, 85, 0.15)' },
                                 ticks: {
                                     color: '#94a3b8',
-                                    font: { family: 'Share Tech Mono' }
+                                    font: { family: 'Share Tech Mono', size: 11 },
+                                    maxRotation: 45,
+                                    minRotation: 45,
+                                    autoSkip: true,
+                                    maxTicksLimit: 15
                                 }
                             },
                             y: {
@@ -559,6 +576,267 @@ function appState() {
                     }
                 });
             }
-        }
+        },
+
+        // ================================================================
+        // SUPERMAN JIRA EASTER EGG — Revised full animation sequence
+        // ================================================================
+
+        async triggerSupermanSequence() {
+            if (this.supermanRunning) return;
+            this.supermanRunning = true;
+
+            // 1 second per number, MAX_COUNT→1 countdown
+            const MAX_COUNT = 8;
+            const STEP_MS = 1000;
+
+            this.appendLog('[DANGEROUS]: COUNT DOWN TO DESTROY WORLD.');
+            this.triggerScreenShake();
+
+            // Wait for shake animation to finish (1400ms) before showing countdown
+            await new Promise(r => setTimeout(r, 1400));
+
+            const overlay = document.getElementById('superman-countdown-overlay');
+            const canvas  = document.getElementById('superman-countdown-canvas');
+            canvas.width        = window.innerWidth;
+            canvas.height       = window.innerHeight;
+            canvas.style.width  = canvas.width  + 'px';
+            canvas.style.height = canvas.height + 'px';
+            overlay.style.display = 'block';
+
+            // Schedule Superman phases concurrently with countdown
+            // Phase 1 starts when countdown reaches 5 (= after MAX_COUNT-5 steps)
+            const p1Delay  = (MAX_COUNT - 5) * STEP_MS;  // 3000ms
+            const p2Delay  = (MAX_COUNT - 3) * STEP_MS;  // 5000ms
+            const p1Dur    = p2Delay - p1Delay; // 2000ms
+            const p2Dur    = MAX_COUNT * STEP_MS - p2Delay - 500; // 2500ms
+
+            const t1 = setTimeout(() => {
+                this.appendLog('[BREACH]: SUPERMAN DETECTED — PHASE 1 (TOP-LEFT → MID-RIGHT).');
+                this.startSupermanPhase1(p1Dur);
+            }, p1Delay);
+
+            const t2 = setTimeout(() => {
+                this.appendLog('[BREACH]: SUPERMAN PHASE 2 — APPROACHING SCREEN. STAND BY.');
+                this.startSupermanPhase2(p2Dur);
+            }, p2Delay);
+
+
+            // Run countdown 10 → 1 (each number takes STEP_MS)
+            for (let i = MAX_COUNT; i >= 1; i--) {
+                this.appendLog(`[WARNING]: DESTROY IN ${i}...`);
+                if (i === 2) this.triggerScreenCrash();
+                await this.animateCountdownNumber(i, STEP_MS);
+            }
+
+            clearTimeout(t1);
+            clearTimeout(t2);
+
+            
+
+            await new Promise(r => setTimeout(r, 600));
+            overlay.style.display = 'none';
+
+            const figure = document.getElementById('superman-flying-figure');
+            figure.style.display    = 'none';
+            figure.style.transition = 'none';
+
+            // Phase 3: Superman rises slowly from below, hovers, speech bubble
+            await new Promise(r => setTimeout(r, 380));
+            await this.showRisingSuperman();
+        },
+
+        animateCountdownNumber(n, stepMs) {
+            return new Promise(resolve => {
+                const canvas = document.getElementById('superman-countdown-canvas');
+                // Sync pixel dimensions with CSS display size to prevent squish bug
+                canvas.width        = window.innerWidth;
+                canvas.height       = window.innerHeight;
+                canvas.style.width  = canvas.width  + 'px';
+                canvas.style.height = canvas.height + 'px';
+                const ctx      = canvas.getContext('2d');
+                const cx       = canvas.width  / 2;
+                const cy       = canvas.height / 2;
+                const duration = stepMs;
+                let start = null;
+
+                const draw = (ts) => {
+                    if (!start) start = ts;
+                    const p = Math.min((ts - start) / duration, 1);
+
+                    // Scale: burst in large → settle to 1 → slight shrink at end
+                    const scale = p < 0.14
+                        ? 1.75 - (0.75 * p / 0.14)
+                        : p < 0.80
+                            ? 1.0
+                            : 1.0 - 0.12 * ((p - 0.80) / 0.20);
+
+                    // Opacity: quick fade-in → hold → quick fade-out
+                    const alpha = p < 0.07
+                        ? p / 0.07
+                        : p > 0.90
+                            ? 1 - (p - 0.90) / 0.10
+                            : 1;
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.translate(cx, cy);
+                    ctx.scale(scale, scale);
+
+                    // Outer glow ring
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 160, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(239,68,68,0.42)';
+                    ctx.lineWidth = 3;
+                    ctx.shadowColor = 'rgba(239,68,68,0.8)';
+                    ctx.shadowBlur = 28;
+                    ctx.stroke();
+
+                    // Inner ring
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 132, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(239,68,68,0.18)';
+                    ctx.lineWidth = 1.5;
+                    ctx.shadowBlur = 0;
+                    ctx.stroke();
+
+                    // Big number (only the number animates — title is static HTML)
+                    ctx.shadowColor = 'rgba(239,68,68,0.98)';
+                    ctx.shadowBlur = 65;
+                    ctx.font = 'bold 260px Orbitron, monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillText(String(n), 0, 0);
+
+                    ctx.restore();
+
+                    if (p < 1) requestAnimationFrame(draw);
+                    else resolve();
+                };
+                requestAnimationFrame(draw);
+            });
+        },
+
+        startSupermanPhase1(durationMs) {
+            const figure = document.getElementById('superman-flying-figure');
+            figure.style.display    = 'block';
+            figure.style.transition = 'none';
+            // Start: off-screen top-left, small
+            figure.style.transform  = 'translate(-300px, 5px) scale(0.5) rotate(-22deg)';
+            void figure.offsetWidth;
+            // Fly off-screen to the right
+            figure.style.transition = `transform ${durationMs}ms ease-in`;
+            figure.style.transform  = 'translate(120vw, 10vh) scale(1) rotate(-8deg)';
+        },
+
+        startSupermanPhase2(durationMs) {
+            const figure = document.getElementById('superman-flying-figure');
+            // Instantly flip to face left at same right-side position
+            figure.style.transition = 'none';
+            figure.style.transform  = 'translate(110vw, 8vh) scale(1) scaleX(-1) rotate(22deg)';
+            void figure.offsetWidth;
+            // Fly off-screen to the left
+            figure.style.transition = `transform ${durationMs}ms ease-in`;
+            figure.style.transform  = 'translate(-30vw, calc(50vh + 120px)) scale(3.6) scaleX(-1) rotate(30deg)';
+        },
+
+        async triggerScreenCrash() {
+            const flash = document.getElementById('superman-impact-flash');
+            const crack = document.getElementById('superman-crack-overlay');
+
+            flash.style.display = 'block';
+            flash.classList.remove('impact-flash');
+            void flash.offsetWidth;
+            flash.classList.add('impact-flash');
+
+            crack.style.display = 'block';
+            crack.classList.remove('crack-appear');
+            void crack.offsetWidth;
+            crack.classList.add('crack-appear');
+
+            document.body.classList.add('shake-heavy');
+            this.appendLog('[IMPACT]: ████ SCREEN BREACH CONFIRMED ████ STRUCTURAL DAMAGE: CRITICAL');
+
+            await new Promise(r => setTimeout(r, 300));
+            document.body.classList.remove('shake-heavy');
+
+            flash.style.display = 'none';
+            flash.classList.remove('impact-flash');
+        },
+
+        async showRisingSuperman() {
+            const wrapper    = document.getElementById('superman-rise-wrapper');
+            const figure     = document.getElementById('superman-standing-figure');
+            const bubble     = document.getElementById('superman-speech-bubble');
+            const banner     = document.getElementById('arrested-banner');
+            const dismissBtn = document.getElementById('superman-dismiss-btn');
+
+            // Start below screen, then rise slowly to mid-air
+            wrapper.style.transition = 'none';
+            wrapper.style.transform  = 'translateY(420px)';
+            wrapper.style.display    = 'block';
+            void wrapper.offsetWidth;
+
+            wrapper.style.transition = 'transform 2.8s cubic-bezier(0.22, 1, 0.36, 1)';
+            wrapper.style.transform  = 'translateY(-10vh)';
+            this.appendLog('[SUPERMAN]: ASCENDING — JUSTICE WILL BE SERVED.');
+
+            // Wait for rise to complete, then start floating
+            await new Promise(r => setTimeout(r, 2300));
+            figure.classList.add('superman-hover');
+
+            // Speech bubble pops in
+            bubble.style.display = 'block';
+            bubble.classList.remove('bubble-pop');
+            void bubble.offsetWidth;
+            bubble.classList.add('bubble-pop');
+            this.appendLog('[SUPERMAN]: "In the name of Truth and Justice, YOU ARE ARRESTED!"');
+
+            // Arrested banner drops from top
+            await new Promise(r => setTimeout(r, 500));
+            banner.style.display = 'block';
+            banner.classList.remove('arrested-drop');
+            void banner.offsetWidth;
+            banner.classList.add('arrested-drop');
+            this.appendLog('[SYSTEM]: SENTENCE DELIVERED.');
+
+            // Dismiss button
+            setTimeout(() => { dismissBtn.style.display = 'block'; }, 1400);
+        },
+
+        dismissSupermanScene() {
+            const wrapper    = document.getElementById('superman-rise-wrapper');
+            const figure     = document.getElementById('superman-standing-figure');
+            const flyFigure  = document.getElementById('superman-flying-figure');
+            const bubble     = document.getElementById('superman-speech-bubble');
+            const banner     = document.getElementById('arrested-banner');
+            const crack      = document.getElementById('superman-crack-overlay');
+            const dismissBtn = document.getElementById('superman-dismiss-btn');
+            const overlay    = document.getElementById('superman-countdown-overlay');
+
+            wrapper.style.display    = 'none';
+            wrapper.style.transform  = '';
+            wrapper.style.transition = '';
+            flyFigure.style.display  = 'none';
+            flyFigure.style.transform  = '';
+            flyFigure.style.transition = '';
+            bubble.style.display     = 'none';
+            banner.style.display     = 'none';
+            crack.style.display      = 'none';
+            dismissBtn.style.display = 'none';
+            overlay.style.display    = 'none';
+
+            figure.classList.remove('superman-hover');
+            bubble.classList.remove('bubble-pop');
+            banner.classList.remove('arrested-drop');
+            crack.classList.remove('crack-appear');
+
+            document.body.classList.remove('shake-effect', 'shake-heavy');
+            this.glassOpenA      = false;
+            this.supermanRunning = false;
+            this.appendLog('[SYSTEM]: Scene dismissed. Trật tự đã được khôi phục. Lồng bảo vệ sự sống đã đóng lại.');
+        },
     }
 }

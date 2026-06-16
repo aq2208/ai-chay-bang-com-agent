@@ -269,3 +269,99 @@ button:disabled {
 .md-report a:hover {
     color: #67e8f9;
 }
+
+/* ===== Superman Arrest Sequence Animations ===== */
+
+/* Heavy impact shake (stronger than normal shake) */
+@keyframes shake-heavy {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    10%  { transform: translate(-10px, -7px) rotate(-1.5deg); }
+    20%  { transform: translate(6px, 10px)   rotate(1deg); }
+    30%  { transform: translate(10px, 5px)   rotate(-0.5deg); }
+    40%  { transform: translate(-6px, -8px)  rotate(1.5deg); }
+    50%  { transform: translate(8px, 8px)    rotate(-1deg); }
+    60%  { transform: translate(-12px, 5px)  rotate(0.5deg); }
+    70%  { transform: translate(8px, -6px)   rotate(-1deg); }
+    80%  { transform: translate(-5px, 10px)  rotate(1deg); }
+    90%  { transform: translate(6px, -7px)   rotate(-0.5deg); }
+}
+.shake-heavy {
+    animation: shake-heavy 0.12s infinite;
+}
+
+/* Superman fly through screen */
+@keyframes superman-fly {
+    0%   { transform: translateX(-380px); }
+    100% { transform: translateX(115vw); }
+}
+.superman-flying {
+    animation: superman-fly 1.5s ease-in forwards;
+}
+
+/* Superman hover float at corner */
+@keyframes superman-float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-18px); }
+}
+.superman-hover {
+    animation: superman-float 2.2s ease-in-out infinite;
+}
+
+/* Screen crack reveal */
+@keyframes crack-in {
+    0%   { opacity: 0; transform: scale(1.04); }
+    100% { opacity: 1; transform: scale(1); }
+}
+.crack-appear {
+    animation: crack-in 0.22s ease-out forwards;
+}
+
+/* White impact flash */
+@keyframes white-flash {
+    0%   { opacity: 0; }
+    20%  { opacity: 0.95; }
+    100% { opacity: 0; }
+}
+.impact-flash {
+    animation: white-flash 0.38s ease-out forwards;
+}
+
+/* Arrested banner drop with bounce */
+@keyframes banner-drop {
+    0%   { transform: translateY(-105%); opacity: 0; }
+    62%  { transform: translateY(10px);  opacity: 1; }
+    78%  { transform: translateY(-5px); }
+    100% { transform: translateY(0px);   opacity: 1; }
+}
+.arrested-drop {
+    animation: banner-drop 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Police siren lights — strictly alternating red/blue */
+@keyframes police-light-red {
+    0%, 49.9% { opacity: 1; }
+    50%, 100%  { opacity: 0; }
+}
+@keyframes police-light-blue {
+    0%, 49.9% { opacity: 0; }
+    50%, 100%  { opacity: 1; }
+}
+.police-red  { animation: police-light-red  0.45s step-end infinite; }
+.police-blue { animation: police-light-blue 0.45s step-end infinite; }
+
+/* Speech bubble pop-in */
+@keyframes bubble-pop {
+    0%   { opacity: 0; transform: scale(0.6) translateY(14px); }
+    65%  { opacity: 1; transform: scale(1.06) translateY(-3px); }
+    100% { opacity: 1; transform: scale(1)    translateY(0); }
+}
+.bubble-pop {
+    animation: bubble-pop 0.42s ease-out forwards;
+}
+
+/* Superman rise from below */
+@keyframes superman-rise {
+    0%   { transform: translateY(420px); opacity: 0.4; }
+    100% { transform: translateY(-58vh);  opacity: 1; }
+}
+/* Float stays same — applied to inner element so it doesn't fight rise wrapper */
