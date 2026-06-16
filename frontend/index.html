@@ -818,5 +818,93 @@
     <!-- JS Logic Scripts -->
     <script src="app.js?v=1.0.7"></script>
 
+    <!-- ==================== MOBILE UNSUPPORTED SCREEN OVERLAY ==================== -->
+    <div id="mobile-warning-overlay"
+         style="display:none; position:fixed; inset:0; z-index:9999;
+                background:#020409; flex-direction:column; align-items:center; justify-content:center;
+                padding:2rem; text-align:center;">
+
+        <!-- Animated scan line -->
+        <div style="position:absolute; inset:0; overflow:hidden; pointer-events:none;">
+            <div style="position:absolute; left:0; right:0; height:2px;
+                        background:linear-gradient(90deg,transparent,rgba(239,68,68,0.6),transparent);
+                        animation:scanline 3s linear infinite;"></div>
+        </div>
+
+        <!-- Warning icon -->
+        <div style="margin-bottom:1.5rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24"
+                 fill="none" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                 style="filter:drop-shadow(0 0 12px rgba(239,68,68,0.8)); animation:pulse-icon 2s ease-in-out infinite;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+        </div>
+
+        <!-- Status tag -->
+        <p style="font-family:'Orbitron',sans-serif; font-size:0.65rem; font-weight:700; letter-spacing:0.25em;
+                  color:rgba(239,68,68,0.6); text-transform:uppercase; margin-bottom:0.75rem;">
+            CRITICAL — INSUFFICIENT HARDWARE DETECTED
+        </p>
+
+        <!-- Main headline -->
+        <h1 style="font-family:'Orbitron',sans-serif; font-size:clamp(1.4rem,5vw,2.2rem); font-weight:900;
+                   color:#ef4444; text-transform:uppercase; letter-spacing:0.05em; line-height:1.2;
+                   text-shadow:0 0 30px rgba(239,68,68,0.9), 0 0 60px rgba(239,68,68,0.4);
+                   margin-bottom:1.25rem;">
+            WRONG<br>WEAPON,<br>SOLDIER.
+        </h1>
+
+        <!-- Sub message -->
+        <p style="font-family:'Share Tech Mono',monospace; font-size:clamp(0.8rem,2.5vw,1rem);
+                  color:rgba(148,163,184,0.85); max-width:480px; line-height:1.7; margin-bottom:2rem;">
+            This system was <span style="color:#f87171;">engineered for destroying human being</span> — not palm-sized devices.<br>
+            Stow the phone. Mount a <span style="color:#22d3ee;">laptop or desktop</span>, and return to the front lines.
+        </p>
+
+        <!-- Minimum spec badge -->
+        <div style="display:inline-flex; align-items:center; gap:0.5rem;
+                    border:1px solid rgba(239,68,68,0.35); border-radius:0.5rem;
+                    padding:0.6rem 1.2rem; background:rgba(239,68,68,0.07);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                 fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <span style="font-family:'Orbitron',sans-serif; font-size:0.65rem; font-weight:700;
+                         letter-spacing:0.15em; color:#f87171; text-transform:uppercase;">
+                MIN. SCREEN WIDTH: 720px
+            </span>
+        </div>
+    </div>
+
+    <style>
+        @keyframes scanline {
+            0%   { top: -2px; }
+            100% { top: 100%; }
+        }
+        @keyframes pulse-icon {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%       { opacity: 0.7; transform: scale(0.95); }
+        }
+    </style>
+
+    <script>
+        (function () {
+            var overlay = document.getElementById('mobile-warning-overlay');
+            function checkWidth() {
+                if (window.innerWidth < 720) {
+                    overlay.style.display = 'flex';
+                } else {
+                    overlay.style.display = 'none';
+                }
+            }
+            checkWidth();
+            window.addEventListener('resize', checkWidth);
+        })();
+    </script>
+
 </body>
 </html>
