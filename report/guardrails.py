@@ -6,6 +6,11 @@ before it is saved or delivered.
 
 from __future__ import annotations
 
+import re
+
+_WRONG_BRAND_RE = re.compile(r"\bzalo\s*pay\b", re.IGNORECASE)
+_CORRECT_BRAND = "Zalopay"
+
 
 def check_report(report: str, items: list[dict]) -> dict:
     """
@@ -45,5 +50,9 @@ def check_report(report: str, items: list[dict]) -> dict:
     for domain in expected_domains:
         if domain not in report:
             problems.append(f"Domain '{domain}' appears in items but not in report")
+
+    wrong = [m.group() for m in _WRONG_BRAND_RE.finditer(report) if m.group() != _CORRECT_BRAND]
+    if wrong:
+        problems.append(f"Incorrect brand name casing found: {list(set(wrong))}")
 
     return {"ok": len(problems) == 0, "issues": problems}

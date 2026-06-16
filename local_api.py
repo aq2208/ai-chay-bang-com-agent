@@ -35,7 +35,7 @@ import config
 from jobs import jira_job, social_job
 
 app = FastAPI(
-    title="ZaloPay Complaint Analytics (local dev)",
+    title="Zalopay Complaint Analytics (local dev)",
     description="Local FastAPI harness for the Jira and Social Media pipelines.",
     version="1.0.0",
 )
