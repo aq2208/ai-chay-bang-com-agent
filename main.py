@@ -72,7 +72,8 @@ class AIReport(Base):
     id = Column(Integer, primary_key=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     report_type = Column(String(50), nullable=False)  # 'jira_report', 'social_report', 'unified'
-    content = Column(Text, nullable=False)
+    content = Column(Text, nullable=True)             # nullable: empty while RUNNING
+    status = Column(String(20), default="DONE")       # 'RUNNING', 'DONE', 'ERROR'
     start_data_time = Column(DateTime, nullable=True)
     end_data_time = Column(DateTime, nullable=True)
 
@@ -179,6 +180,19 @@ def broadcast_status_sync():
         print(f"[ws error] Lỗi khi broadcast trạng thái production: {e}")
     finally:
         db.close()
+
+
+def broadcast_report_event_sync(report_id: int, status: str):
+    """Broadcast a report status update to all WebSocket clients."""
+    global main_loop
+    if main_loop and main_loop.is_running():
+        asyncio.run_coroutine_threadsafe(
+            manager.broadcast({
+                "type": "report_update",
+                "data": {"report_id": report_id, "status": status}
+            }),
+            main_loop
+        )
 
 @api_app.websocket("/ws/status")
 async def websocket_status_endpoint(websocket: WebSocket):
@@ -476,6 +490,48 @@ def run_social_callback(
         db.close()
 
 
+@api_app.get("/api/complaints/daily", tags=["api"])
+def get_daily_complaints():
+    db = SessionLocal()
+    try:
+        posts = db.query(Post.platform, Post.posted_at, Post.crawled_at).all()
+        counts = {}
+        for platform, posted_at, crawled_at in posts:
+            dt = posted_at or crawled_at
+            if not dt:
+                continue
+            date_str = dt.strftime("%Y-%m-%d")
+            platform_norm = str(platform).lower().strip()
+            if "thread" in platform_norm:
+                platform_key = "threads"
+            elif "jira" in platform_norm:
+                platform_key = "jira"
+            elif "app" in platform_norm or "store" in platform_norm or "review" in platform_norm:
+                platform_key = "app_store"
+            else:
+                platform_key = platform_norm
+
+            if date_str not in counts:
+                counts[date_str] = {}
+            counts[date_str][platform_key] = counts[date_str].get(platform_key, 0) + 1
+            
+        sorted_dates = sorted(counts.keys())
+        result = []
+        for d in sorted_dates:
+            entry = {"date": d}
+            for pk in ["threads", "jira", "app_store"]:
+                entry[pk] = counts[d].get(pk, 0)
+            for pk, count in counts[d].items():
+                if pk not in entry:
+                    entry[pk] = count
+            result.append(entry)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
 @api_app.get("/api/history", tags=["api"])
 def get_history():
     db = SessionLocal()
@@ -497,22 +553,45 @@ def get_history():
         db.close()
 
 
-@api_app.get("/api/reports/latest", tags=["api"])
-def get_latest_report():
+# ── AI Reports API Endpoints ───────────────────────────────────────────────
+
+@api_app.get("/api/reports", tags=["api"])
+def list_reports():
+    """Return all AI reports sorted by created_at DESC (no content for performance)."""
     db = SessionLocal()
     try:
-        report = db.query(AIReport).order_by(AIReport.id.desc()).first()
-        if not report:
-            return {"report": None}
-        return {
-            "report": {
-                "id": report.id,
-                "created_at": report.created_at.isoformat() + "Z" if report.created_at else None,
-                "report_type": report.report_type,
-                "content": report.content,
-                "start_data_time": report.start_data_time.isoformat() + "Z" if report.start_data_time else None,
-                "end_data_time": report.end_data_time.isoformat() + "Z" if report.end_data_time else None,
+        reports = db.query(AIReport).order_by(AIReport.created_at.desc()).all()
+        return [
+            {
+                "id": r.id,
+                "report_type": r.report_type,
+                "status": r.status or "DONE",
+                "created_at": r.created_at.isoformat() + "Z" if r.created_at else None,
+                "start_data_time": r.start_data_time.isoformat() + "Z" if r.start_data_time else None,
+                "end_data_time": r.end_data_time.isoformat() + "Z" if r.end_data_time else None,
             }
+            for r in reports
+        ]
+    finally:
+        db.close()
+
+
+@api_app.get("/api/reports/{report_id}", tags=["api"])
+def get_report(report_id: int):
+    """Return a single AI report with full content."""
+    db = SessionLocal()
+    try:
+        report = db.query(AIReport).filter(AIReport.id == report_id).first()
+        if not report:
+            raise HTTPException(status_code=404, detail="Báo cáo không tìm thấy.")
+        return {
+            "id": report.id,
+            "report_type": report.report_type,
+            "status": report.status or "DONE",
+            "created_at": report.created_at.isoformat() + "Z" if report.created_at else None,
+            "start_data_time": report.start_data_time.isoformat() + "Z" if report.start_data_time else None,
+            "end_data_time": report.end_data_time.isoformat() + "Z" if report.end_data_time else None,
+            "content": report.content or "",
         }
     finally:
         db.close()
@@ -526,6 +605,7 @@ def generate_report_from_db(
     """
     Generate a new AI report from posts stored in DB within a given time range.
     Accepts: { "start_data_time": "2026-06-01T00:00:00", "end_data_time": "2026-06-15T23:59:59" }
+    Returns report_id immediately so FE can track via WebSocket.
     """
     start_str = payload.get("start_data_time")
     end_str = payload.get("end_data_time")
@@ -567,33 +647,54 @@ def generate_report_from_db(
             }
             for p in posts
         ]
+
+        # Create a RUNNING record immediately so FE can track via WebSocket
+        ai_report = AIReport(
+            created_at=datetime.utcnow(),
+            report_type="social_report",
+            content=None,
+            status="RUNNING",
+            start_data_time=start_dt,
+            end_data_time=end_dt,
+        )
+        db.add(ai_report)
+        db.commit()
+        db.refresh(ai_report)
+        report_id = ai_report.id
+        print(f"[report] Created RUNNING report record id={report_id}.")
     finally:
         db.close()
+
+    # Broadcast that a new RUNNING report exists
+    broadcast_report_event_sync(report_id, "RUNNING")
 
     background_tasks.add_task(
         _run_report_from_posts,
         raw_posts=raw_posts,
+        report_id=report_id,
         start_data_time=start_dt,
         end_data_time=end_dt,
     )
     return {
         "message": f"Bắt đầu tạo báo cáo từ {len(raw_posts)} bài đăng trong khoảng thời gian đã chọn.",
         "count": len(raw_posts),
-        "status": "started"
+        "report_id": report_id,
+        "status": "RUNNING"
     }
 
 
 def _run_report_from_posts(
     raw_posts: list[dict],
+    report_id: int,
     start_data_time: datetime,
     end_data_time: datetime,
 ) -> None:
-    """Background worker: runs the report-generation pipeline on pre-fetched posts and saves to DB."""
+    """Background worker: runs the report-generation pipeline and updates the existing DB record."""
     from jobs.social_job import run_report_only
 
     db = SessionLocal()
     try:
-        print(f"[report] Generating report from {len(raw_posts)} posts ({start_data_time} → {end_data_time})...")
+        print(f"[report] Generating report id={report_id} from {len(raw_posts)} posts ({start_data_time} → {end_data_time})...")
         result = run_report_only(raw_posts=raw_posts)
         report_content = ""
         report_path = result.get("report_path")
@@ -601,22 +702,33 @@ def _run_report_from_posts(
             with open(report_path, "r", encoding="utf-8") as f:
                 report_content = f.read()
 
-        if report_content:
-            ai_report = AIReport(
-                created_at=datetime.utcnow(),
-                report_type="social_report",
-                content=report_content,
-                start_data_time=start_data_time,
-                end_data_time=end_data_time,
-            )
-            db.add(ai_report)
-            db.commit()
-            print(f"[report] Report saved to database (id={ai_report.id}).")
+        # Update the existing RUNNING record
+        ai_report = db.query(AIReport).filter(AIReport.id == report_id).first()
+        if ai_report:
+            if report_content:
+                ai_report.content = report_content
+                ai_report.status = "DONE"
+                db.commit()
+                print(f"[report] Report id={report_id} updated to DONE.")
+                broadcast_report_event_sync(report_id, "DONE")
+            else:
+                ai_report.status = "ERROR"
+                db.commit()
+                print(f"[report] Report id={report_id} — no content generated, marked ERROR.")
+                broadcast_report_event_sync(report_id, "ERROR")
         else:
-            print("[report] No report content generated.")
+            print(f"[report] WARNING: Could not find report id={report_id} to update.")
     except Exception as exc:
         db.rollback()
-        print(f"[report] Report generation failed: {exc}")
+        print(f"[report] Report id={report_id} generation failed: {exc}")
+        try:
+            ai_report = db.query(AIReport).filter(AIReport.id == report_id).first()
+            if ai_report:
+                ai_report.status = "ERROR"
+                db.commit()
+                broadcast_report_event_sync(report_id, "ERROR")
+        except Exception:
+            pass
     finally:
         db.close()
 
