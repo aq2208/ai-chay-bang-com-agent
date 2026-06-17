@@ -3,6 +3,7 @@
 An AI pipeline that fetches complaints from social media (Facebook, Threads), filters and classifies them, then generates structured issue reports for Product Owners — plus an agentic Q&A endpoint. Jira integration is planned for a future release.
 
 Link demo: [ZALOPAY COMPLAINT ANALYTICS AI AGENT](https://endpoint-1d0e4738-5aaf-40ca-91be-edd302527db2.agentbase-runtime.aiplatform.vngcloud.vn)
+Link youtube: [Youtube demo](https://youtu.be/nJt1l0i4hoY)
 
 > **Deployed as a VNG AgentBase Custom Agent.** The LLM is `google/gemma-4-31b-it` via the OpenAI-compatible
 > MaaS endpoint. `main.py` is the AgentBase entrypoint (`/invocations`); `local_api.py` is the local FastAPI
