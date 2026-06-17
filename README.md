@@ -1,6 +1,6 @@
 # Zalopay Issue Analytics Agent
 
-An AI pipeline that fetches complaints from Jira and social media (Facebook, Threads), filters and classifies them, then generates structured issue reports for Product Owners — plus an agentic Q&A endpoint.
+An AI pipeline that fetches complaints from social media (Facebook, Threads), filters and classifies them, then generates structured issue reports for Product Owners — plus an agentic Q&A endpoint. Jira integration is planned for a future release.
 
 > **Deployed as a VNG AgentBase Custom Agent.** The LLM is `google/gemma-4-31b-it` via the OpenAI-compatible
 > MaaS endpoint. `main.py` is the AgentBase entrypoint (`/invocations`); `local_api.py` is the local FastAPI
@@ -10,12 +10,41 @@ An AI pipeline that fetches complaints from Jira and social media (Facebook, Thr
 
 ---
 
-## What It Does
+## Table of Contents
 
-Two independent jobs run daily (or on-demand via API):
+- [1) What It Does](#1-what-it-does)
+- [2) Architecture](#2-architecture)
+- [3) Sequence Diagram](#3-sequence-diagram)
+- [4) Key Technical Techniques](#4-key-technical-techniques)
+- [5) File Map](#5-file-map)
+- [6) Local Setup](#6-local-setup)
+  - [1. Clone and enter the project](#1-clone-and-enter-the-project)
+  - [2. Create and Activate a Virtual Environment](#2-create-and-activate-a-virtual-environment-venv)
+  - [3. Install dependencies](#3-install-dependencies)
+  - [4. Configure your LLM provider](#4-configure-your-llm-provider)
+  - [5. Verify setup](#5-verify-setup)
+  - [6. Run Local FastAPI Server & Frontend UI](#6-run-local-fastapi-server--frontend-ui)
+- [7) Running Tests](#7-running-tests)
+  - [Test individual pipeline stages](#test-individual-pipeline-stages)
+  - [Run the full Phase 2 test suite](#run-the-full-phase-2-test-suite)
+  - [Build the knowledge base index](#build-the-knowledge-base-index-phase-3--no-api-key-needed)
+  - [Test the knowledge base search](#test-the-knowledge-base-search)
+- [8) How the Pipeline Flows (Code Trace)](#8-how-the-pipeline-flows-code-trace)
+- [9) LLM Provider Reference](#9-llm-provider-reference)
+- [10) Deploy to AgentBase](#10-deploy-to-agentbase)
+- [11) Crawling (Bronze layer)](#11-crawling-bronze-layer)
+- [12) Build Status](#12-build-status)
+- [13) Environment Variables Reference](#13-environment-variables-reference)
+- [14) Key Design Decisions](#14-key-design-decisions)
 
-- **Job 1 — Jira**: Pulls internal support tickets, extracts issues, classifies by domain/segment, searches the knowledge base for solutions, generates a report.
-- **Job 2 — Social Media**: Searches Facebook and Threads by keyword, keeps only negative posts (sentiment filter), analyzes any images, extracts and groups issues, generates a report.
+---
+
+## 1) What It Does
+
+One job is live in this MVP; a second is planned:
+
+- **Job 1 — Jira** *(planned — not available in MVP)*: Will pull internal support tickets, extract issues, classify by domain/segment, search the knowledge base for solutions, and generate a report.
+- **Job 2 — Social Media** *(active)*: Searches Facebook and Threads by keyword, keeps only negative posts (sentiment filter), analyzes any images, extracts and groups issues, generates a report.
 
 Output: a markdown table like this:
 
@@ -25,18 +54,18 @@ Output: a markdown table like this:
 
 ---
 
-## Architecture
+## 2) Architecture
 
 ```
 DATA SOURCES
-  Jira API ──────────────────────────────────────────────────────┐
+  Jira API (planned) ────────────────────────────────────────────┐
   Facebook keyword search ──┐                                    │
   Threads keyword search ───┘                                    │
                              │                                   │
                              ▼                                   ▼
-                    ┌─────────────────┐               ┌─────────────────┐
-                    │   SOCIAL JOB    │               │    JIRA JOB     │
-                    └────────┬────────┘               └────────┬────────┘
+                    ┌─────────────────┐               ┌─────────────────────────┐
+                    │   SOCIAL JOB    │               │  JIRA JOB (planned)     │
+                    └────────┬────────┘               └────────────┬────────────┘
                              │                                 │
               ╔══════════════╪═════════════════════════════════╪══════╗
               ║  SHARED PIPELINE STAGES                        │      ║
@@ -86,14 +115,169 @@ DATA SOURCES
 
 TRIGGER LAYER
   AgentBase entrypoint (main.py) → POST /invocations
-     {"action":"run","job":"jira|social|all"}  → run a pipeline + index issues
+     {"action":"run","job":"social"}            → run a pipeline + index issues  (jira: planned)
      {"action":"query","question":"..."}        → agentic Q&A (RAG over indexed issues)
   Local dev: local_api.py (FastAPI + APScheduler) — not shipped
 ```
 
 ---
 
-## File Map
+## 3) Sequence Diagram
+
+Two runtime flows — **daily crawl** (automated) and **user query** (on-demand):
+
+```mermaid
+sequenceDiagram
+    participant FE   as Agent Tool (FE)
+    participant GH   as GitHub Action<br/>(daily_crawl)
+    participant BE   as Backend (main.py)
+    participant BERT as PhoBERT<br/>(local model)
+    participant LLM  as LLM (Gemma / Gemini)
+    participant DB   as Database (ChromaDB)
+
+    rect rgb(220, 240, 255)
+        Note over GH: ① Daily crawl — 8 AM VN / manual trigger
+        GH->>GH: Playwright: scrape Threads & Facebook posts
+        GH->>BE: POST /api/crawl/sync<br/>(raw posts payload)
+        BE->>BE: Stage 1 · Preprocess<br/>clean · filter · dedup
+        BE->>BERT: Stage 2 · Sentiment — all posts
+        BERT-->>BE: score + label (NEG / POS)
+        BE->>LLM: Stage 2 · Tiebreaker (borderline score 0.60–0.75 only)
+        LLM-->>BE: final label (NEG / POS)
+        BE->>LLM: Stage 3 · Image analysis<br/>(posts with images)
+        LLM-->>BE: image description
+        BE->>LLM: Stage 4 · Extract issue sentence
+        LLM-->>BE: clean English issue
+        BE->>LLM: Stage 5+6 · Classify domain & segment
+        LLM-->>BE: domain, segment
+        BE->>DB: Stage 7 · Embed issues → cosine grouping
+        DB-->>BE: merged groups + mention counts
+        BE->>DB: Stage 8 · RAG — search KB docs
+        DB-->>BE: suggested approach
+        BE->>LLM: Stage 9 · Generate report (markdown table)
+        LLM-->>BE: report markdown
+        BE->>BE: Stage 10 · Guardrails validation
+        BE->>DB: Index issues into Q&A store
+        GH-->>GH: Done — or POST /api/crawl/fail on error
+    end
+
+    rect rgb(255, 243, 220)
+        Note over FE: ② User request — generate report on-demand
+        FE->>BE: POST /invocations<br/>{"action":"run","job":"social","dry_run":false}
+        BE->>DB: Load latest crawled posts from bronze store
+        DB-->>BE: raw posts
+        BE->>BE: Stage 1 · Preprocess<br/>clean · filter · dedup
+        BE->>BERT: Stage 2 · Sentiment — all posts
+        BERT-->>BE: score + label (NEG / POS)
+        BE->>LLM: Stages 2–6 · Tiebreaker · Image · Extract · Classify
+        LLM-->>BE: enriched issues
+        BE->>DB: Stages 7–8 · Group + RAG search KB
+        DB-->>BE: grouped issues + suggested approaches
+        BE->>LLM: Stage 9 · Generate report (markdown table)
+        LLM-->>BE: report markdown
+        BE->>BE: Stage 10 · Guardrails validation
+        BE->>DB: Index issues into Q&A store
+        BE-->>FE: {"report": "...markdown table..."}
+    end
+```
+
+---
+
+## 4) Key Technical Techniques
+
+### 4.1 PhoBERT — Vietnamese Sentiment Analysis
+
+**What it is:** [PhoBERT](https://github.com/VinAIResearch/PhoBERT) is a BERT-based transformer pre-trained on 20GB of Vietnamese text by VinAI Research. It understands Vietnamese morphology far better than a general multilingual model.
+
+**How it's used here (Stage 2):**
+
+```
+Post text → PhoBERT tokenizer → transformer → confidence score (0–1)
+  score ≥ 0.75  → hard NEG / POS  (no LLM call — ~80% of posts)
+  score 0.60–0.75 → borderline → LLM tiebreaker
+  score < 0.60  → hard POS (discard)
+```
+
+**Why this design:** PhoBERT runs locally in milliseconds at zero API cost. Calling the LLM for every post would be 5–10× slower and expensive at scale. The two-stage approach keeps latency low while using the LLM's reasoning only where the signal is ambiguous.
+
+**Model size:** ~500 MB (CPU build, downloaded on first run from Hugging Face; baked into the Docker image for production).
+
+---
+
+### 4.2 RAG — Retrieval-Augmented Generation
+
+Two separate ChromaDB collections power the RAG layer:
+
+| Collection | Contents | Used in |
+|------------|----------|---------|
+| `knowledge_base` | 5 solution docs (account, payment, QR code, app performance, merchant) — chunked into ~17 passages | Stage 8: retrieve suggested fix for each issue |
+| `taxonomy` | `docs/taxonomy.md` — domain/segment definitions and examples | Stages 5+6: ground LLM classification in exact vocabulary |
+
+**Flow (Stage 8 — solution retrieval):**
+```
+issue sentence → MiniLM embedding → cosine search in knowledge_base
+→ top-k passages → injected into LLM prompt as context
+→ LLM generates "Suggested Approach" grounded in KB docs
+```
+
+**Flow (Stages 5+6 — RAG-grounded classification):**
+```
+issue sentence → embedding → cosine search in taxonomy collection
+→ retrieve canonical domain/segment examples
+→ LLM classifies using retrieved vocabulary (no hallucinated categories)
+```
+
+**Why ChromaDB:** embedded, zero-config, runs in-process. The index is built at image build time and baked into the Docker image, so there is no cold-start delay in production.
+
+---
+
+### 4.3 Semantic Grouping via Sentence Embeddings
+
+**What it is (Stage 7):** after extracting individual issue sentences, many posts describe the same problem (e.g. five users all report "Visa top-up failing"). Reporting each separately inflates the issue count and hides signal.
+
+**How it works:**
+```
+issue sentences → MiniLM (all-MiniLM-L6-v2) → 384-dim embeddings
+→ pairwise cosine similarity matrix
+→ greedy clustering: merge if similarity > 0.82 threshold
+→ output: deduplicated groups with merged source lists + mention count
+```
+
+**Why MiniLM:** 22 MB, CPU-fast, strong English semantic similarity. Issues are extracted in English (Stage 4), so Vietnamese morphology is not a concern at this stage.
+
+---
+
+### 4.4 Two-Tier LLM Strategy
+
+All LLM calls are routed through `llm_client.py` using one of two model slots:
+
+| Slot | Env var | Default (Google) | Used for |
+|------|---------|-----------------|---------|
+| `FAST` | `MODEL_FAST` | `gemini-2.5-flash-lite` | Stages 2, 4, 5, 6 — high-volume, short output |
+| `SMART` | `MODEL_SMART` | `gemini-2.5-pro` | Stage 9 — full report generation, long context |
+
+This keeps per-run cost low: classification calls (which dominate by count) use the cheapest model; only the single report-generation call uses the more capable model.
+
+---
+
+### 4.5 Vision Analysis for Screenshots
+
+**What it is (Stage 3):** social media posts about payment errors often include screenshots (error dialogs, transaction receipts). The image is base64-encoded by the crawler and sent to the LLM's vision endpoint.
+
+**How it works:**
+```
+post.images (base64 list)
+→ compare MD5 against sample_images/ reference set per domain
+→ if no exact match: send to LLM vision (Gemma / Gemini)
+  prompt: "Describe the UI error or state shown in this screenshot"
+→ image_description appended to post text before Stage 4 extraction
+```
+
+**Reference images** (`sample_images/Payment/`, `QR_Code/`, etc.) allow the system to skip the LLM call for known, recurring error screens — reducing latency and cost for common cases.
+
+---
+
+## 5) File Map
 
 ```
 clawathon-aicbc-agent/
@@ -117,8 +301,8 @@ clawathon-aicbc-agent/
 │   ├── threads_comment_crawler.py ← crawls comments of scraped Threads posts
 │   └── bronze.py          ← shared raw file IO utility
 │
-├── connectors/            ← data fetchers: Jira, Facebook, Threads (built)
-│   ├── jira.py            ← Jira REST API client
+├── connectors/            ← data fetchers: Facebook, Threads (active); Jira (built, not active in MVP)
+│   ├── jira.py            ← Jira REST API client (planned — not active in MVP)
 │   ├── facebook.py        ← Facebook Graph API keyword search
 │   └── threads.py         ← Threads API keyword search
 │
@@ -133,7 +317,7 @@ clawathon-aicbc-agent/
 │   └── guardrails.py      ← validate report format and completeness
 │
 ├── jobs/                  ← full pipeline runners (built)
-│   ├── jira_job.py        ← runs stages 1,4,5,6,7,8,9,10 on Jira data
+│   ├── jira_job.py        ← runs stages 1,4,5,6,7,8,9,10 on Jira data (planned — not active in MVP)
 │   └── social_job.py      ← runs stages 1,2,3,4,5,6,7,8,9,10 on social data
 │
 ├── sample_images/         ← reference screenshots per domain
@@ -151,12 +335,12 @@ clawathon-aicbc-agent/
 
 ---
 
-## Local Setup
+## 6) Local Setup
 
 ### 1. Clone and enter the project
 
 ```bash
-cd clawathon-aicbc-agent
+cd ai-chay-bang-com-agent
 ```
 
 ### 2. Create and Activate a Virtual Environment (`venv`)
@@ -267,7 +451,7 @@ Once started, open your browser and navigate to:
 
 ---
 
-## Running Tests
+## 7) Running Tests
 
 ### Test individual pipeline stages
 
@@ -387,7 +571,7 @@ This runs all four processors in sequence. On first run, PhoBERT (~500MB) downlo
 
 ---
 
-## How the Pipeline Flows (Code Trace)
+## 8) How the Pipeline Flows (Code Trace)
 
 Here is what happens when the Social job runs on one Facebook post:
 
@@ -442,7 +626,7 @@ OUTPUT ROW:
 
 ---
 
-## LLM Provider Reference
+## 9) LLM Provider Reference
 
 The `llm_client` is pluggable. **Production = AgentBase MaaS** (OpenAI-compatible, single Gemma model).
 **Local/Colab dev = Google Gemini** (free tier) so you can test stage-by-stage without MaaS access.
@@ -455,23 +639,59 @@ The `llm_client` is pluggable. **Production = AgentBase MaaS** (OpenAI-compatibl
 
 Switching is two `.env` lines — no code changes. See `.env.example` (dev) and `.env.agentbase.example` (deploy).
 
-## Deploy to AgentBase
+## 10) Deploy to AgentBase
+
+### One-time setup (first deploy only)
 
 1. **Credentials:** copy `.greennode.json.example` → `.greennode.json` and fill `client_id`/`client_secret`
    (from `iam.console.vngcloud.vn/service-accounts`). Create a MaaS LLM key via `/agentbase-llm`.
 2. **Env:** copy `.env.agentbase.example` → an env file; set `LLM_API_KEY` (MaaS) + connector creds.
    Do **not** set `GREENNODE_*` (auto-injected at runtime).
-3. **Deploy:** `/agentbase-deploy` (or build `--platform linux/amd64`, push to CR, create a
-   `runtime-s2-general-4x8` runtime `--from-cr --env-file <env>`). The image bakes PhoBERT + MiniLM + the
-   ChromaDB index, so there's no first-request model download.
-4. **Invoke** (`POST <endpoint>/invocations`):
-   ```jsonc
-   {"action": "run", "job": "all", "dry_run": false}              // run pipelines + index issues
-   {"action": "query", "question": "summarize payment issues this week"}  // agentic Q&A
-   ```
-   Health: `GET <endpoint>/health`.
+3. **GitHub Secrets:** the CI/CD pipeline reads three repository secrets — set them once in
+   **Settings → Secrets and variables → Actions**:
+   | Secret | Value |
+   |--------|-------|
+   | `GREENNODE_CLIENT_ID` | your service-account `client_id` |
+   | `GREENNODE_CLIENT_SECRET` | your service-account `client_secret` |
+   | `GREENNODE_ENV_FILE` | the full contents of your `.env` file (paste as-is) |
+   | `HF_TOKEN` | Hugging Face token (needed to bake PhoBERT into the image) |
 
-## Crawling (Bronze layer)
+### Triggering a deploy
+
+The [**Build and Deploy** GitHub Actions workflow](https://github.com/aq2208/ai-chay-bang-com-agent/actions/workflows/deploy.yml)
+builds a `linux/amd64` Docker image (with PhoBERT + MiniLM + ChromaDB index baked in),
+pushes it to VCR, and hot-updates the running AgentBase runtime — no first-request model download.
+
+**Option A — Manual trigger (no tag needed)**
+
+Go to the workflow page and click **Run workflow**:
+
+> [https://github.com/aq2208/ai-chay-bang-com-agent/actions/workflows/deploy.yml](https://github.com/aq2208/ai-chay-bang-com-agent/actions/workflows/deploy.yml)
+
+The image is tagged `v<run_number>` automatically.
+
+**Option B — Tag a release**
+
+Push a `v*` tag and the workflow fires automatically:
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+The image is tagged with the same tag (`v1.2.0`). Use this for versioned production releases.
+
+### Invoke the deployed agent
+
+```jsonc
+// POST <endpoint>/invocations
+{"action": "run", "job": "all", "dry_run": false}              // run pipelines + index issues
+{"action": "query", "question": "summarize payment issues this week"}  // agentic Q&A
+```
+
+Health check: `GET <endpoint>/health`.
+
+## 11) Crawling (Bronze layer)
 
 Crawling is **decoupled** from the agent and runs **offline** (Colab / a worker / locally) — headless
 Chromium is too heavy and easily blocked from datacenter IPs, and a scroll-crawl would exceed the
@@ -497,7 +717,7 @@ python -m crawlers.threads_comment_crawler  # → data/raw/threads_comments_<ts>
 
 ---
 
-## Build Status
+## 12) Build Status
 
 | Area | Status |
 |------|--------|
@@ -506,10 +726,12 @@ python -m crawlers.threads_comment_crawler  # → data/raw/threads_comments_<ts>
 | Knowledge base — 5 solution docs + taxonomy, ChromaDB (`knowledge_base` + `taxonomy`) | ✅ Done |
 | Image analyzer, semantic grouper | ✅ Done |
 | Report generator + guardrails | ✅ Done |
-| Job runners (`jira_job.py`, `social_job.py`) | ✅ Done |
+| Job runner `social_job.py` | ✅ Done |
+| Job runner `jira_job.py` | 🔜 Built, not active in MVP |
 | **RAG-grounded classification** (taxonomy retrieval) | ✅ Done |
 | **Agentic Q&A** (`knowledge_base/issues_store.py` + `query` action) | ✅ Done |
-| Connectors: Facebook, Threads, **Jira** | ✅ Done |
+| Connectors: Facebook, Threads | ✅ Done |
+| Connector: **Jira** | 🔜 Built, not active in MVP |
 | LLM client → MaaS (`LLM_BASE_URL`, single Gemma) | ✅ Done |
 | **AgentBase entrypoint** (`main.py`) + `local_api.py` dev harness | ✅ Done |
 | Dependencies + Dockerfile (baked models/index) + AgentBase config templates | ✅ Done |
@@ -519,7 +741,7 @@ python -m crawlers.threads_comment_crawler  # → data/raw/threads_comments_<ts>
 
 ---
 
-## Environment Variables Reference
+## 13) Environment Variables Reference
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -527,22 +749,22 @@ python -m crawlers.threads_comment_crawler  # → data/raw/threads_comments_<ts>
 | `LLM_API_KEY` | Yes | API key for the chosen provider |
 | `MODEL_FAST` | No | Override fast model name (default auto per provider) |
 | `MODEL_SMART` | No | Override smart model name (default auto per provider) |
-| `JIRA_URL` | Phase 8 | Your Jira instance URL |
-| `JIRA_EMAIL` | Phase 8 | Jira account email |
-| `JIRA_API_TOKEN` | Phase 8 | Jira API token |
+| `JIRA_URL` | Future (Jira not in MVP) | Your Jira instance URL |
+| `JIRA_EMAIL` | Future (Jira not in MVP) | Jira account email |
+| `JIRA_API_TOKEN` | Future (Jira not in MVP) | Jira API token |
 | `FB_PAGE_ID` | Phase 8 | Facebook page ID to search |
 | `FB_ACCESS_TOKEN` | Phase 8 | Facebook Graph API token |
 | `THREADS_ACCESS_TOKEN` | Phase 8 | Threads API token |
 
 ---
 
-## Key Design Decisions
+## 14) Key Design Decisions
 
 **Pipeline, not a conversational agent.** Each stage is a small, focused LLM call. This is cheaper, faster, and easier to debug than one giant prompt.
 
 **PhoBERT before LLM for sentiment.** The ML model handles ~80% of cases in milliseconds for free. LLM is only called for the borderline 20%.
 
-**Two independent jobs.** Jira and Social can fail, be triggered, and be scheduled independently. A Facebook API outage doesn't block the Jira report.
+**Two independent jobs (by design).** The Social job runs independently in this MVP. When the Jira job is added, both can fail, be triggered, and be scheduled independently — a Facebook API outage won't block the Jira report.
 
 **Pluggable LLM.** All LLM calls go through `llm_client.py`. Swap providers in `.env` — zero code changes.
 
