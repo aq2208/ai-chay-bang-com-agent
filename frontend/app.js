@@ -18,6 +18,7 @@ function appState() {
         // --- Data States ---
         history: [],
         reports: [],
+        reportsLoading: false,
         ws: null,
         runningJob: null,
         chart: null,
@@ -151,6 +152,7 @@ function appState() {
 
         // --- Fetch All AI Reports (list, no content) ---
         async fetchReports() {
+            this.reportsLoading = true;
             try {
                 const res = await fetch('/api/reports');
                 if (res.ok) {
@@ -158,6 +160,8 @@ function appState() {
                 }
             } catch (err) {
                 this.appendLog("[ERROR]: Lỗi khi lấy danh sách báo cáo: " + err.message);
+            } finally {
+                this.reportsLoading = false;
             }
         },
 
@@ -498,9 +502,8 @@ function appState() {
             // Renderer.tablecell parser-context issue that caused silent failures.
             marked.use({
                 renderer: {
-                    link({ href, title, text }) {
-                        const t = title ? ` title="${title}"` : '';
-                        return `<a href="${href}"${t} target="_blank" rel="noopener noreferrer">${text}</a>`;
+                    link(href, title, text) {
+                        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${text || 'Link'}</a>`;
                     },
                     image({ href, title, text }) {
                         const t = title ? ` title="${title}"` : '';
@@ -538,7 +541,16 @@ function appState() {
                 // tablecell/tablerow to have a live parser context attached.
                 return html
                     .replace(/<table>/g, '<div style="width:100%;overflow-x:auto;"><table>')
-                    .replace(/<\/table>/g, '</table></div>');
+                    .replace(/<\/table>/g, '</table></div>')
+                    .replace(/<th>Issue<\/th>/gi, '<th><div style="width:150px;">Issue</div></th>')
+                    .replace(/<th>Suggested Approach<\/th>/gi, '<th><div style="width:200px;">Suggested Approach</div></th>')
+                    // Add lightbox onclick to all img tags (covers raw HTML <img> passthrough)
+                    .replace(/<img\b([^>]*)>/gi, (match, attrs) => {
+                        if (attrs.includes('onclick=')) return match;
+                        return `<img${attrs} class="md-img-clickable" onclick="window.openImagePreview(this.src)">`;
+                    })
+                    // Strip <a> wrappers around <img> so the onclick isn't blocked by link navigation
+                    .replace(/<a\b[^>]*>(\s*<img\b[^>]*>\s*)<\/a>/gi, '$1');
             } catch (e) {
                 console.error('[MD]: Failed to parse markdown:', e);
                 return this.escapeHtml(content);
@@ -663,10 +675,15 @@ function appState() {
                                 backgroundColor: '#0f172a',
                                 titleColor: '#38bdf8',
                                 titleFont: { family: 'Orbitron' },
-                                bodyFont: { family: 'Share Tech Mono', size: 12 },
+                                bodyFont: { family: 'Share Tech Mono' },
                                 borderColor: '#334155',
                                 borderWidth: 1,
-                                padding: { left: 14, right: 14, top: 10, bottom: 10 }
+                                padding: { x: 20, y: 14 },
+                                boxWidth: 16,
+                                boxHeight: 16,
+                                boxPadding: 4,
+                                titleMarginBottom: 10,
+                                bodySpacing: 8
                             }
                         },
                         scales: {
